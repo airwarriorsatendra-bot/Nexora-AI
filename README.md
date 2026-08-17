@@ -38,3 +38,17 @@ The application creates its SQLite runtime database at `storage/backlinks.db` th
 - Outreach: dry-run/fake delivery only; no live email delivery provider.
 - Local SEO: deterministic website/citation-input analysis; no GBP, reviews, or rank-tracking provider.
 - Analytics preserves source attribution and currency. It does not perform FX conversion or cross-platform conversion deduplication.
+
+## Controlled beta deployment
+
+Run Nexora as a Streamlit application on Python 3.12 with HTTPS terminated by the selected hosting platform or reverse proxy:
+
+```bash
+streamlit run dashboard/app.py --server.headless true
+```
+
+Set secrets through the hosting platform's secret manager/environment, never source files or a committed `.env`. `storage/` must be mounted on persistent storage because `storage/backlinks.db` contains runtime and audit data; ephemeral container filesystems are not suitable.
+
+For controlled beta operations, use a private single-tenant deployment or trusted agency pilot. Application authentication and multi-tenancy are not implemented, so this application must not be exposed as a shared public SaaS instance.
+
+Create SQLite backups with the application's `DatabaseManager.backup()` method, which uses SQLite's online backup API. Retain daily backups for 14 days, verify restore integrity regularly, and take a verified backup before schema or deployment changes.
