@@ -22,8 +22,8 @@ def render_outreach(_st: Any = None, _dataframe: Any = None, workflow: OutreachD
     del _st, _dataframe
     workflow=workflow or OutreachDashboardWorkflow()
     st.session_state.setdefault("outreach_campaign", None); st.session_state.setdefault("outreach_candidate", None); st.session_state.setdefault("outreach_message", None)
-    st.subheader("Outreach automation")
-    st.caption("Messages are prepared and validated first. Delivery is dry-run by default and never starts on page render.")
+    st.subheader("Outreach Automation · DRY RUN")
+    st.caption("Campaigns and message previews are safe by default. No live email delivery is available.")
     with st.form("outreach-campaign",border=True):
         name=st.text_input("Campaign name",key="outreach-name"); description=st.text_input("Description",key="outreach-description")
         objective=st.selectbox("Objective",list(CampaignObjective),format_func=lambda x:x.value.replace("_"," "),key="outreach-objective")
@@ -49,7 +49,11 @@ def render_outreach(_st: Any = None, _dataframe: Any = None, workflow: OutreachD
             except Exception as exc: st.error(str(exc))
     message=st.session_state.outreach_message
     if message is not None:
-        st.json(message.model_dump(mode="json"))
+        with st.container(border=True):
+            st.caption("MESSAGE PREVIEW")
+            st.markdown(f"**To:** {candidate.email}")
+            st.markdown(f"**Subject:** {message.subject}")
+            st.write(message.body)
         if st.button("Run delivery dry-run",key="outreach-dry-run"):
             try: st.session_state.outreach_message=_run_async(workflow.send(message.message_id,True)); st.success("Dry-run recorded. No email was transmitted.")
             except Exception as exc: st.error(str(exc))

@@ -30,12 +30,13 @@ def render_seo(workflow: SEODashboardWorkflow | None = None) -> None:
     """Render one form-driven SEO audit without import-time network activity."""
     st.session_state.setdefault("seo_response", None)
     workflow = workflow or SEODashboardWorkflow()
-    st.subheader("SEO audit")
-    st.caption("Deterministic technical, on-page, content, structured-data, image, and link checks.")
+    st.subheader("SEO Intelligence")
+    st.caption("Deterministic technical, on-page, content and structured-data audit workspace.")
 
     with st.form("seo-audit", border=True):
-        url = st.text_input("Page URL", placeholder="https://example.com/page", key="seo-url")
-        submitted = st.form_submit_button("Run SEO audit", type="primary")
+        input_column, action_column = st.columns((4, 1))
+        url = input_column.text_input("Website URL", placeholder="https://example.com/page", key="seo-url")
+        submitted = action_column.form_submit_button("Run audit", type="primary")
     if submitted:
         try:
             with st.status("SEO audit is running…", expanded=True) as status:
@@ -61,10 +62,10 @@ def render_seo(workflow: SEODashboardWorkflow | None = None) -> None:
         st.metric("Words", audit.metrics.get("word_count", 0), border=True)
         st.metric("Internal links", audit.metrics.get("internal_links", 0), border=True)
     scores = pd.DataFrame(audit.category_scores.items(), columns=["Category", "Score"])
-    st.subheader("Category scores")
+    st.subheader("Audit coverage")
     st.bar_chart(scores, x="Category", y="Score")
     issues = _issues_frame(response)
-    st.subheader("Findings")
+    st.subheader("Findings and recommendations")
     if issues.empty:
         st.success("No deterministic issues were found.")
     else:

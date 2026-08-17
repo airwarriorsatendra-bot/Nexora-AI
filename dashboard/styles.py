@@ -10,13 +10,17 @@ def load_css() -> str:
 section.main, body { background:#080B12; color:#F8FAFC; }
 .main .block-container { max-width:1440px; padding:1.5rem 2rem 2.5rem; }
 section[data-testid="stSidebar"] { background:#0D111C; border-right:1px solid #252C3B; }
+section[data-testid="stSidebar"] .stButton > button[data-testid="stBaseButton-secondary"] { background:transparent; border-color:transparent; color:#94A3B8; justify-content:flex-start; font-weight:500; }
+section[data-testid="stSidebar"] .stButton > button[data-testid="stBaseButton-secondary"]:hover { background:#171D2B; border-color:#252C3B; color:#F8FAFC; }
+section[data-testid="stSidebar"] .stButton > button[data-testid="stBaseButton-primary"] { background:#263A8F; border-color:#5B7CFF; justify-content:flex-start; }
 section[data-testid="stSidebar"] [data-baseweb="select"] { background:#171D2B; border-radius:10px; }
 .nexora-title { font-size:34px; font-weight:700; letter-spacing:-.03em; margin:0; color:#F8FAFC; }
 .nexora-subtitle { font-size:15px; color:#94A3B8; margin:.35rem 0 1.5rem; }
 div[data-testid="metric-container"] { background:#111622; border:1px solid #252C3B; border-radius:14px; padding:1rem; box-shadow:none; }
 div[data-testid="metric-container"] label { color:#94A3B8; font-size:.8rem; text-transform:uppercase; letter-spacing:.06em; }
 div[data-testid="metric-container"] [data-testid="stMetricValue"] { color:#F8FAFC; }
-.stButton > button { border-radius:10px; border:1px solid #5B7CFF; background:#5B7CFF; color:#FFF; font-weight:600; min-height:2.6rem; }
+.stButton > button { border-radius:10px; border:1px solid #252C3B; background:#171D2B; color:#F8FAFC; font-weight:600; min-height:2.6rem; }
+.stButton > button[data-testid="stBaseButton-primary"] { border-color:#5B7CFF; background:#5B7CFF; color:#FFF; }
 .stButton > button:hover { background:#4969EA; border-color:#4969EA; }
 .stTextInput input, .stTextArea textarea, [data-baseweb="select"] { background:#111622; border-color:#252C3B; border-radius:10px; }
 [data-testid="stDataFrame"] { border:1px solid #252C3B; border-radius:12px; overflow:hidden; }

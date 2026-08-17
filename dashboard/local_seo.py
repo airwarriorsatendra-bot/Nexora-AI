@@ -10,9 +10,9 @@ def run(c):
  except RuntimeError:return asyncio.run(c)
  raise RuntimeError("Local audit cannot run inside an active event loop.")
 def render_local_seo(workflow=None):
- st.session_state.setdefault("local_seo_response",None);workflow=workflow or LocalSEODashboardWorkflow();st.subheader("Local SEO audit");st.caption("Audits supplied business data and website HTML. GBP, reviews, citations, and rank data remain unavailable unless imported.")
+ st.session_state.setdefault("local_seo_response",None);workflow=workflow or LocalSEODashboardWorkflow();st.subheader("Local SEO Intelligence");st.caption("Business visibility audit using supplied business details and website signals.")
  with st.form("local-seo",border=True):
-  name=st.text_input("Business name",key="local-name");website=st.text_input("Website URL",key="local-url");phone=st.text_input("Phone",key="local-phone");address=st.text_input("Address",key="local-address");city=st.text_input("City",key="local-city");state=st.text_input("State",key="local-state");category=st.text_input("Primary category",key="local-category");submit=st.form_submit_button("Run local audit",type="primary")
+  left,right=st.columns(2);name=left.text_input("Business name",key="local-name");website=right.text_input("Website URL",key="local-url");phone=left.text_input("Phone",key="local-phone");address=right.text_input("Address",key="local-address");city=left.text_input("City",key="local-city");state=right.text_input("State",key="local-state");category=left.text_input("Primary category",key="local-category");submit=st.form_submit_button("Run local audit",type="primary")
  if submit:
   try:st.session_state.local_seo_response=run(workflow.execute(LocalBusiness(name=name,website=website,phone=phone,location=Location(address=address,city=city,state=state),primary_category=category)))
   except Exception as exc:st.error(str(exc))

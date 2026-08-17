@@ -30,12 +30,12 @@ def render_backlinks(workflow: BacklinksDashboardWorkflow | None = None) -> None
     """Render only implemented imported-opportunity and HTML-verification capabilities."""
     _initialize_state()
     workflow = workflow or BacklinksDashboardWorkflow()
-    st.subheader("Backlink intelligence")
-    st.caption("Imported candidates are opportunities. A backlink is verified only when its source-page HTML contains the target link.")
+    st.subheader("Backlink Intelligence")
+    st.caption("Opportunities and verified links are deliberately separate evidence types.")
 
     with st.form("backlink-discovery", border=True):
         target_url = st.text_input("Target URL", placeholder="https://example.com/guide", key="backlink-target-url")
-        candidates = st.text_area("Candidate opportunity URLs", placeholder="One URL per line", key="backlink-candidate-urls")
+        candidates = st.text_area("Opportunity URLs", placeholder="One URL per line", key="backlink-candidate-urls")
         discover_submitted = st.form_submit_button("Save opportunities", type="primary")
     if discover_submitted:
         values = [line.strip() for line in candidates.splitlines() if line.strip()]
@@ -50,6 +50,7 @@ def render_backlinks(workflow: BacklinksDashboardWorkflow | None = None) -> None
         for error in discovery.errors:
             st.caption(error)
 
+    st.subheader("Verified backlinks")
     with st.form("backlink-verification", border=True):
         source_url = st.text_input("Source page URL", placeholder="https://publisher.example/article", key="backlink-source-url")
         verification_target = st.text_input("Target URL to verify", value=target_url, key="backlink-verification-target")

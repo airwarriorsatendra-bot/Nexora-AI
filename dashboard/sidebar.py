@@ -1,44 +1,32 @@
-"""Navigation and legacy-prospect filters for the Streamlit dashboard."""
+"""Persistent product navigation; filters remain in the Explorer workspace."""
 
 from __future__ import annotations
 
 import streamlit as st
 
-from dashboard.database import utility
+
+NAVIGATION = (
+    ("OVERVIEW", (("Dashboard", "dashboard"),)),
+    ("INTELLIGENCE", (("Research", "travel_explore"), ("SEO", "search"), ("Local SEO", "location_on"), ("Backlinks", "link"))),
+    ("ACQUISITION", (("Outreach", "outgoing_mail"), ("Google Ads", "ads_click"), ("Meta Ads", "campaign"))),
+    ("INSIGHTS", (("Analytics", "insights"), ("Explorer", "manage_search"))),
+    ("SYSTEM", (("Settings", "settings"),)),
+)
 
 
 def render_sidebar() -> dict[str, object]:
-    """Render application navigation and filters without starting research work."""
-    st.sidebar.title("Nexora AI")
-    st.sidebar.caption("AI digital marketing platform")
-    st.sidebar.divider()
-
-    page = st.sidebar.selectbox(
-        "Workspace",
-        ["Dashboard", "Research", "SEO", "Local SEO", "Google Ads", "Meta Ads", "Backlinks", "Explorer", "Outreach", "Analytics", "Settings"],
-        label_visibility="collapsed",
-    )
-
-    st.sidebar.divider()
-    st.sidebar.subheader("Prospect search")
-    keyword = st.sidebar.text_input(
-        "Search existing prospects",
-        placeholder="Search title, URL or notes…",
-    )
-    categories = ["All"]
-    try:
-        categories.extend(value for value in utility.distinct_values("prospects", "category") if value)
-    except Exception:
-        # Legacy dashboard filtering remains usable even if its store is unavailable.
-        pass
-    category = st.sidebar.selectbox("Category", categories)
-    minimum_score = st.sidebar.slider("Minimum AI score", 0, 100, 0)
-
-    return {
-        "page": page,
-        "filters": {
-            "keyword": keyword,
-            "category": "" if category == "All" else category,
-            "minimum_score": minimum_score,
-        },
-    }
+    st.session_state.setdefault("nexora_navigation_page", "Dashboard")
+    with st.sidebar:
+        st.markdown("### NEXORA AI")
+        st.caption("AI Marketing Intelligence · BETA")
+        st.divider()
+        for group, entries in NAVIGATION:
+            st.caption(group)
+            for page, icon in entries:
+                active = st.session_state.nexora_navigation_page == page
+                if st.button(f":material/{icon}:  {page}", key=f"nexora_nav_{page}", type="primary" if active else "secondary", width="stretch"):
+                    st.session_state.nexora_navigation_page = page
+                    st.rerun()
+        st.divider()
+        st.caption("Single-workspace beta · import and dry-run capabilities are clearly labelled in their modules.")
+    return {"page": st.session_state.nexora_navigation_page, "filters": {"keyword": "", "category": "", "minimum_score": 0}}

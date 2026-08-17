@@ -1,58 +1,33 @@
-"""
-==========================================================
-NEXORA AI
-Settings
-==========================================================
-"""
+"""Safe configuration status center; secrets are never displayed."""
+
+from __future__ import annotations
 
 import os
 import streamlit as st
 
 
-def render_settings(st):
-    """
-    Render application settings page.
-    """
+def _provider_card(name: str, variable: str) -> None:
+    with st.container(border=True):
+        st.markdown(f"**{name}**")
+        st.caption("Configured" if os.getenv(variable) else "Not configured")
 
-    st.subheader("⚙ Settings")
 
-    st.markdown("### API Configuration")
-
-    groq = os.getenv("GROQ_API_KEY", "")
-    serper = os.getenv("SERPER_API_KEY", "")
-
-    st.text_input(
-        "Groq API Key",
-        value="Configured" if groq else "",
-        disabled=True,
-        placeholder="Not configured",
-    )
-
-    st.text_input(
-        "Serper API Key",
-        value="Configured" if serper else "",
-        disabled=True,
-        placeholder="Not configured",
-    )
-
-    st.divider()
-
-    st.markdown("### Database")
-
-    st.success("SQLite Database Connected")
-
-    st.divider()
-
-    st.markdown("### Application")
-
-    st.write("**Application:** Nexora AI")
-    st.write("**Version:** 1.0.0")
-    st.write("**Status:** Running")
-
-    st.divider()
-
-    if st.button("Clear Session"):
-
+def render_settings(st) -> None:
+    st.subheader("Settings")
+    st.caption("Safe configuration status for this local workspace. Secret values are never shown.")
+    st.subheader("AI providers")
+    with st.container(horizontal=True):
+        for name, variable in (("NVIDIA", "NVIDIA_API_KEY"), ("Groq", "GROQ_API_KEY"), ("OpenAI", "OPENAI_API_KEY"), ("Gemini", "GOOGLE_API_KEY"), ("Claude", "ANTHROPIC_API_KEY")):
+            _provider_card(name, variable)
+    st.subheader("Search providers")
+    with st.container(horizontal=True):
+        for name, variable in (("Tavily", "TAVILY_API_KEY"), ("Serper", "SERPER_API_KEY"), ("Brave", "BRAVE_API_KEY"), ("Google CSE", "GOOGLE_CSE_API_KEY"), ("Perplexity", "PERPLEXITY_API_KEY")):
+            _provider_card(name, variable)
+    st.subheader("Application and database")
+    with st.container(horizontal=True):
+        st.metric("Application", "Nexora AI", border=True)
+        st.metric("Database", "SQLite", border=True)
+        st.metric("Delivery mode", "Dry run", border=True)
+    if st.button("Clear local session", type="secondary"):
         st.session_state.clear()
-
-        st.success("Session cleared successfully.")
+        st.rerun()

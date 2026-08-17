@@ -10,6 +10,7 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 import streamlit as st
+import pandas as pd
 
 from dashboard.analytics import render_analytics
 from dashboard.backlinks import render_backlinks
@@ -58,19 +59,34 @@ if not data.empty:
 
 if sidebar["page"] == "Dashboard":
     render_dashboard_metrics(st, data)
-    left, right = st.columns((3, 2))
+    left, right = st.columns((3, 2), gap="large")
     with left:
-        st.subheader("Marketing workspace")
-        st.caption("Explore detailed prospect records in Explorer. This overview intentionally shows only supported workspace data.")
+        st.subheader("Marketing intelligence")
         if data.empty:
-            st.info("No activity yet. Start Research or open an existing workspace module.")
+            st.caption("Prospect score distribution becomes available after Research stores results.")
         else:
-            preview_columns = [column for column in ("title", "url", "category", "priority_score", "status") if column in data.columns]
-            st.dataframe(data[preview_columns].head(8), hide_index=True, width="stretch")
+            distribution = data.assign(score_band=pd.cut(data["priority_score"].fillna(0), bins=[-1, 39, 59, 79, 100], labels=["0–39", "40–59", "60–79", "80–100"]))["score_band"].value_counts().sort_index()
+            st.bar_chart(distribution, color="#5B7CFF", height=220, horizontal=True)
     with right:
-        st.subheader("Platform status")
-        st.success("Research, SEO, Backlinks, and Analytics are available.")
-        st.info("Ads use import mode. Outreach operates in dry-run mode.")
+        with st.container(border=True):
+            st.subheader("Attention center")
+            if data.empty:
+                st.markdown("**Queue is clear**")
+                st.caption("No prospect records require review yet.")
+            else:
+                high_priority = int((data["priority_score"].fillna(0) >= 80).sum())
+                st.markdown("**No high-priority prospects**" if high_priority == 0 else f"**{high_priority} high-priority prospects**")
+                st.caption("Open Explorer to inspect and export supported records.")
+    st.subheader("Recent activity")
+    if data.empty:
+        st.caption("Recent workspace records will appear here after Research completes.")
+    else:
+        activity_columns = [column for column in ("title", "category", "priority_score", "status", "created_at") if column in data.columns]
+        st.dataframe(data[activity_columns].head(5), hide_index=True, width="stretch")
+    st.subheader("Platform capabilities")
+    with st.container(horizontal=True):
+        for label, value in (("Research", "AVAILABLE"), ("SEO", "AVAILABLE"), ("Backlinks", "AVAILABLE"), ("Outreach", "DRY RUN"), ("Google Ads", "IMPORT"), ("Meta Ads", "IMPORT"), ("Analytics", "AVAILABLE")):
+            st.metric(label, value, border=True)
 elif sidebar["page"] == "Research":
     render_research()
 elif sidebar["page"] == "SEO":

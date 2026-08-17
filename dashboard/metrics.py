@@ -13,8 +13,8 @@ def render_dashboard_metrics(st, dataframe) -> None:
     contacted = len(dataframe[dataframe["status"] == "Contacted"]) if "status" in dataframe.columns else 0
     average_score = round(dataframe["priority_score"].fillna(0).mean(), 1)
     st.caption("EXECUTIVE OVERVIEW")
-    with st.container(horizontal=True):
-        st.metric("Prospects", f"{total:,}", border=True)
-        st.metric("High priority", f"{high_priority:,}", border=True)
-        st.metric("Contacted", f"{contacted:,}", border=True)
-        st.metric("Average AI score", average_score, border=True)
+    columns = st.columns(4, gap="small")
+    for column, label, value, context in zip(columns, ("Prospects", "High priority", "Contacted", "Average AI score"), (f"{total:,}", f"{high_priority:,}", f"{contacted:,}", average_score), ("Discovered records", "Ready for review", "Recorded outreach status", "From persisted prospects")):
+        with column:
+            st.metric(label, value, border=True)
+            st.caption(context)

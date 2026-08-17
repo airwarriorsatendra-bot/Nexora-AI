@@ -9,11 +9,12 @@ from dashboard.research_workflow import run_async
 
 
 def render_analytics_intelligence(workflow: AnalyticsDashboardWorkflow | None = None) -> None:
-    st.subheader("Marketing intelligence")
+    st.subheader("Analytics & Marketing Intelligence")
     st.caption("KPIs retain source, reporting period, and currency. Cross-platform conversions are source-attributed and not deduplicated.")
     workflow = workflow or AnalyticsDashboardWorkflow()
     st.session_state.setdefault("analytics_report", None)
-    if st.button("Refresh available source snapshots"):
+    controls, action = st.columns((4, 1))
+    if action.button("Refresh snapshots", type="primary"):
         try:
             st.session_state.analytics_report = run_async(workflow.latest_report())
         except Exception as exc:
@@ -23,7 +24,7 @@ def render_analytics_intelligence(workflow: AnalyticsDashboardWorkflow | None = 
         st.info("No persisted Google Ads or Meta Ads snapshots are available yet.")
         return
     available_sources = sorted({kpi.source_module for kpi in report.kpis})
-    sources = tuple(st.multiselect("Source modules", available_sources, default=available_sources))
+    sources = tuple(controls.multiselect("Source modules", available_sources, default=available_sources))
     frame = kpis_to_dataframe(report, sources)
     if frame.empty:
         st.info("No KPIs match the selected sources.")

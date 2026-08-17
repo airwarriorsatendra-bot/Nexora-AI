@@ -18,7 +18,6 @@ Responsibilities:
 
 from __future__ import annotations
 
-import shutil
 import sqlite3
 from contextlib import contextmanager
 from pathlib import Path
@@ -228,13 +227,15 @@ class DatabaseManager:
         self,
         destination: str | Path,
     ) -> None:
-
+        """Create a consistent SQLite backup while the application is running."""
+        backup_path = Path(destination)
+        backup_path.parent.mkdir(parents=True, exist_ok=True)
         self.connection.commit()
-
-        shutil.copy2(
-            self.database_path,
-            destination,
-        )
+        destination_connection = sqlite3.connect(backup_path)
+        try:
+            self.connection.backup(destination_connection)
+        finally:
+            destination_connection.close()
 
     # -----------------------------------------------------
 

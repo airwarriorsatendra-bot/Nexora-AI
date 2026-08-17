@@ -81,8 +81,8 @@ def render_research(workflow: ResearchDashboardWorkflow | None = None) -> None:
     _initialize_state()
     workflow = workflow or ResearchDashboardWorkflow()
 
-    st.subheader("Research")
-    st.caption("Discover, enrich, persist, and export backlink opportunities.")
+    st.subheader("Research Intelligence")
+    st.caption("Discover and qualify marketing opportunities through search, crawling and AI analysis.")
 
     search_providers = workflow.available_search_providers()
     ai_providers = workflow.available_ai_providers()
@@ -91,20 +91,21 @@ def render_research(workflow: ResearchDashboardWorkflow | None = None) -> None:
         return
 
     with st.form("research-request", border=True):
-        industry = st.text_input("Industry or niche", key="research-industry")
-        research_mode = st.selectbox(
+        left, right = st.columns(2)
+        industry = left.text_input("Industry or niche", key="research-industry")
+        research_mode = right.selectbox(
             "Research mode",
             options=list(ResearchMode),
             format_func=lambda mode: mode.value.replace("_", " "),
             key="research-mode",
         )
-        search_provider = st.selectbox(
+        search_provider = left.selectbox(
             "Search provider",
             options=list(search_providers),
             format_func=lambda provider: provider.value,
             key="research-search-provider",
         )
-        ai_provider = st.selectbox("AI provider", options=list(ai_providers), key="research-ai-provider")
+        ai_provider = right.selectbox("AI provider", options=list(ai_providers), key="research-ai-provider")
 
         location_left, location_right = st.columns(2)
         country = location_left.text_input("Country", key="research-country")
