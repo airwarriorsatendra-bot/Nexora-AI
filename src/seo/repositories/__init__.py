@@ -1,0 +1,1 @@
+"""SEO persistence adapters."""

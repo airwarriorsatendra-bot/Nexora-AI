@@ -1,0 +1,47 @@
+# Local configuration and credentials
+.env
+.env.*
+!.env.example
+
+# Python environments and bytecode
+.venv/
+.venv-*/
+venv/
+env/
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Test, coverage, type-checker, and linter output
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+coverage.xml
+
+# IDE and operating-system state
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Build artifacts
+build/
+dist/
+*.egg-info/
+
+# Runtime data, logs, and generated output
+*.log
+logs/
+storage/*.db
+storage/*.db-wal
+storage/*.db-shm
+storage/cache/
+storage/exports/
+storage/logs/
+storage/reports/
+database/*.db
+temp/
+tmp/
