@@ -39,7 +39,7 @@ apply_styles(st)
 
 sidebar = render_sidebar()
 filters = sidebar["filters"]
-page_header(st, APP_NAME, APP_DESCRIPTION)
+page_header(st, "Marketing overview", "Monitor intelligence, opportunities and campaign activity.")
 
 data = analytics.export_dataframe()
 if not data.empty:
@@ -58,7 +58,19 @@ if not data.empty:
 
 if sidebar["page"] == "Dashboard":
     render_dashboard_metrics(st, data)
-    render_explorer(st, data)
+    left, right = st.columns((3, 2))
+    with left:
+        st.subheader("Marketing workspace")
+        st.caption("Explore detailed prospect records in Explorer. This overview intentionally shows only supported workspace data.")
+        if data.empty:
+            st.info("No activity yet. Start Research or open an existing workspace module.")
+        else:
+            preview_columns = [column for column in ("title", "url", "category", "priority_score", "status") if column in data.columns]
+            st.dataframe(data[preview_columns].head(8), hide_index=True, width="stretch")
+    with right:
+        st.subheader("Platform status")
+        st.success("Research, SEO, Backlinks, and Analytics are available.")
+        st.info("Ads use import mode. Outreach operates in dry-run mode.")
 elif sidebar["page"] == "Research":
     render_research()
 elif sidebar["page"] == "SEO":

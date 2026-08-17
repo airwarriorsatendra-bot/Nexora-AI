@@ -13,10 +13,10 @@ def render_sidebar() -> dict[str, object]:
     st.sidebar.caption("AI digital marketing platform")
     st.sidebar.divider()
 
-    page = st.sidebar.radio(
-        "Navigation",
+    page = st.sidebar.selectbox(
+        "Workspace",
         ["Dashboard", "Research", "SEO", "Local SEO", "Google Ads", "Meta Ads", "Backlinks", "Explorer", "Outreach", "Analytics", "Settings"],
-        index=0,
+        label_visibility="collapsed",
     )
 
     st.sidebar.divider()

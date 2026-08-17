@@ -1,67 +1,20 @@
-"""
-==========================================================
-NEXORA AI
-Dashboard Metrics
-==========================================================
-"""
+"""Executive dashboard metrics derived only from persisted prospect data."""
 
-import streamlit as st
+from __future__ import annotations
 
 
-def render_dashboard_metrics(st, dataframe):
-    """
-    Render dashboard KPI cards.
-    """
-
+def render_dashboard_metrics(st, dataframe) -> None:
+    """Render a compact, honest premium KPI row."""
     if dataframe is None or dataframe.empty:
-
-        st.warning("No prospects found.")
-
+        st.info("No prospects yet. Start Research to build your opportunity pipeline.")
         return
-
     total = len(dataframe)
-
-    high_priority = len(
-        dataframe[
-            dataframe["priority_score"] >= 80
-        ]
-    )
-
-    average_score = round(
-        dataframe["priority_score"].fillna(0).mean(),
-        1,
-    )
-
-    contacted = 0
-
-    if "status" in dataframe.columns:
-
-        contacted = len(
-            dataframe[
-                dataframe["status"] == "Contacted"
-            ]
-        )
-
-    col1, col2, col3, col4 = st.columns(4)
-
-    col1.metric(
-        "🌐 Prospects",
-        f"{total:,}",
-    )
-
-    col2.metric(
-        "⭐ High Priority",
-        f"{high_priority:,}",
-    )
-
-    col3.metric(
-        "📧 Contacted",
-        f"{contacted:,}",
-    )
-
-    col4.metric(
-        "🤖 Avg AI Score",
-        average_score,
-    )
-
-    st.divider()
+    high_priority = len(dataframe[dataframe["priority_score"] >= 80])
+    contacted = len(dataframe[dataframe["status"] == "Contacted"]) if "status" in dataframe.columns else 0
+    average_score = round(dataframe["priority_score"].fillna(0).mean(), 1)
+    st.caption("EXECUTIVE OVERVIEW")
+    with st.container(horizontal=True):
+        st.metric("Prospects", f"{total:,}", border=True)
+        st.metric("High priority", f"{high_priority:,}", border=True)
+        st.metric("Contacted", f"{contacted:,}", border=True)
+        st.metric("Average AI score", average_score, border=True)
