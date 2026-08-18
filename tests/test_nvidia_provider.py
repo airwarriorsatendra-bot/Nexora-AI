@@ -33,14 +33,16 @@ class _Response:
 
 
 class _Client:
-    def __init__(self, outcomes: deque[Any], calls: list[tuple[str, dict[str, Any]]]) -> None:
+    def __init__(self, outcomes: deque[Any], calls: list[tuple[str, dict[str, Any]]], exits: list[bool]) -> None:
         self._outcomes = outcomes
         self._calls = calls
+        self._exits = exits
 
     async def __aenter__(self) -> "_Client":
         return self
 
     async def __aexit__(self, exc_type: Any, exc: Any, traceback: Any) -> None:
+        self._exits.append(True)
         return None
 
     async def post(self, url: str, *, json: dict[str, Any]) -> _Response:
@@ -56,10 +58,11 @@ class _ClientFactory:
         self.outcomes = deque(outcomes)
         self.calls: list[tuple[str, dict[str, Any]]] = []
         self.options: list[dict[str, Any]] = []
+        self.exits: list[bool] = []
 
     def __call__(self, **kwargs: Any) -> _Client:
         self.options.append(kwargs)
-        return _Client(self.outcomes, self.calls)
+        return _Client(self.outcomes, self.calls, self.exits)
 
 
 class NvidiaProviderTests(unittest.IsolatedAsyncioTestCase):
@@ -125,6 +128,48 @@ class NvidiaProviderTests(unittest.IsolatedAsyncioTestCase):
         self.assertIsInstance(raised.exception.__cause__, httpx.TransportError)
         self.assertEqual(len(factory.calls), 3)
         self.assertEqual(sleeps, [2, 4])
+
+    async def test_deterministic_client_errors_are_not_retried(self) -> None:
+        for status in (400, 401, 403, 404, 422):
+            with self.subTest(status=status):
+                request = httpx.Request("POST", "https://example.test")
+                response = httpx.Response(status, request=request)
+                factory = _ClientFactory([
+                    _Response(error=httpx.HTTPStatusError("client error", request=request, response=response))
+                ])
+                with self.assertRaises(ExternalAPIError) as raised:
+                    await self._provider(factory).generate("analyze prospect")
+                self.assertIsInstance(raised.exception.__cause__, httpx.HTTPStatusError)
+                self.assertEqual(len(factory.calls), 1)
+                self.assertEqual(len(factory.exits), 1)
+                self.assertNotIn("nvidia-key", str(raised.exception))
+
+    async def test_retryable_statuses_use_bounded_retries(self) -> None:
+        for status in (429, 500, 502, 503, 504):
+            with self.subTest(status=status):
+                request = httpx.Request("POST", "https://example.test")
+                response = httpx.Response(status, request=request)
+                error = httpx.HTTPStatusError("transient", request=request, response=response)
+                factory = _ClientFactory([_Response(error=error), _Response(error=error), _Response(error=error)])
+                sleeps: list[float] = []
+                with self.assertRaises(ExternalAPIError) as raised:
+                    await self._provider(factory, sleeps).generate("analyze prospect")
+                self.assertIs(raised.exception.__cause__, error)
+                self.assertEqual(len(factory.calls), 3)
+                self.assertEqual(sleeps, [2, 4])
+                self.assertEqual(len(factory.exits), 3)
+
+    async def test_retryable_status_can_succeed(self) -> None:
+        request = httpx.Request("POST", "https://example.test")
+        response = httpx.Response(429, request=request)
+        error = httpx.HTTPStatusError("rate limited", request=request, response=response)
+        factory = _ClientFactory([
+            _Response(error=error),
+            _Response({"choices": [{"message": {"content": "{}"}}]}),
+        ])
+        self.assertEqual(await self._provider(factory).generate("analyze prospect"), "{}")
+        self.assertEqual(len(factory.calls), 2)
+        self.assertEqual(len(factory.exits), 2)
 
     async def test_composition_supports_nvidia_and_existing_ai_providers(self) -> None:
         environment = {

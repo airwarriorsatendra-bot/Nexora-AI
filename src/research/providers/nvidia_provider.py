@@ -86,7 +86,13 @@ class NvidiaProvider:
                 return data
             except ExternalAPIError:
                 raise
-            except (httpx.TimeoutException, httpx.TransportError, httpx.HTTPStatusError) as exc:
+            except httpx.HTTPStatusError as exc:
+                if exc.response.status_code not in {429, 500, 502, 503, 504}:
+                    raise ExternalAPIError("NVIDIA generation request failed.") from exc
+                last_error = exc
+                if attempt < DEFAULT_RETRY_COUNT:
+                    await self._sleep(DEFAULT_RETRY_DELAY_SECONDS * attempt)
+            except (httpx.TimeoutException, httpx.TransportError) as exc:
                 last_error = exc
                 if attempt < DEFAULT_RETRY_COUNT:
                     await self._sleep(DEFAULT_RETRY_DELAY_SECONDS * attempt)
