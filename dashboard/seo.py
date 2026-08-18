@@ -10,6 +10,7 @@ import streamlit as st
 
 from dashboard.search_console import render_search_console
 from dashboard.seo_workflow import SEODashboardWorkflow
+from src.seo.domain.seo_intelligence import SEOIntelligenceReport, SEOOpportunity
 from src.seo.dto.seo_audit_response import SEOAuditResponse
 
 
@@ -82,13 +83,75 @@ def _render_technical_audit(workflow: SEODashboardWorkflow) -> None:
     st.download_button("Export findings CSV", filtered.to_csv(index=False), "nexora_seo_findings.csv", "text/csv")
 
 
+def _opportunity_frame(items: tuple[SEOOpportunity, ...]) -> pd.DataFrame:
+    return pd.DataFrame([{"Priority": item.priority_score, "Type": item.opportunity_type.value.replace("_", " ").title(), "Subject": item.subject, "Clicks": item.clicks, "Impressions": item.impressions, "CTR": float(item.ctr), "Position": float(item.average_position), "Trend": item.comparison.trend.value if item.comparison else "NOT AVAILABLE", "Evidence": " • ".join(item.evidence), "Recommended action": item.recommendation} for item in items])
+
+
+def _render_intelligence(workflow: SEODashboardWorkflow) -> None:
+    st.session_state.setdefault("seo_intelligence_report", None)
+    st.caption("Derived locally from persisted GSC and period-matched GA4 snapshots. No external refresh runs here.")
+    if st.button("Load persisted intelligence", key="seo-intelligence-load", type="primary"):
+        try:
+            st.session_state.seo_intelligence_report = _run_async(workflow.intelligence())
+        except Exception:
+            st.error("Persisted SEO intelligence could not be loaded.")
+    report = st.session_state.seo_intelligence_report
+    if not isinstance(report, SEOIntelligenceReport):
+        st.info("Load persisted intelligence after refreshing Search Performance. No metrics are fabricated when data is unavailable.")
+        return
+    opportunities = report.opportunities
+    with st.container(horizontal=True):
+        st.metric("SEO opportunities", len(opportunities), border=True)
+        st.metric("High priority", sum(item.priority_score >= 60 for item in opportunities), border=True)
+        st.metric("Striking distance", sum(item.opportunity_type.value == "STRIKING_DISTANCE" for item in opportunities), border=True)
+        st.metric("CTR opportunities", sum(item.opportunity_type.value == "LOW_CTR" for item in opportunities), border=True)
+    for note in report.notes:
+        st.info(note)
+    frame = _opportunity_frame(opportunities)
+    st.subheader("Priority opportunities")
+    if frame.empty:
+        st.info("No deterministic opportunities were identified in persisted source snapshots.")
+        return
+    st.dataframe(frame.head(25), hide_index=True, width="stretch", column_config={"CTR": st.column_config.NumberColumn(format="percent"), "Evidence": st.column_config.TextColumn(width="large"), "Recommended action": st.column_config.TextColumn(width="large")})
+    query_frame, page_frame = _opportunity_frame(report.query_opportunities), _opportunity_frame(report.page_opportunities)
+    query_tab, page_tab, bridge_tab = st.tabs(["Query intelligence", "Page intelligence", "GSC + GA4 insights"])
+    with query_tab:
+        _render_filtered("Query opportunities", query_frame, "query")
+    with page_tab:
+        _render_filtered("Page opportunities", page_frame, "page")
+    with bridge_tab:
+        bridge = _opportunity_frame(report.gsc_ga4_insights)
+        if bridge.empty:
+            st.info("No period-matched URL evidence supports a GSC + GA4 insight.")
+        else:
+            st.dataframe(bridge, hide_index=True, width="stretch")
+    st.download_button("Export all opportunities CSV", frame.to_csv(index=False), "nexora_seo_opportunities.csv", "text/csv")
+    st.download_button("Export query opportunities CSV", query_frame.to_csv(index=False), "nexora_seo_query_opportunities.csv", "text/csv")
+    st.download_button("Export page opportunities CSV", page_frame.to_csv(index=False), "nexora_seo_page_opportunities.csv", "text/csv")
+
+
+def _render_filtered(label: str, frame: pd.DataFrame, key: str) -> None:
+    if frame.empty:
+        st.info(f"No persisted {key} opportunity evidence is available.")
+        return
+    types = st.multiselect(f"{label} types", sorted(frame["Type"].unique()), default=sorted(frame["Type"].unique()), key=f"seo-{key}-types")
+    minimum = st.number_input(f"Minimum impressions ({key})", min_value=0, value=0, key=f"seo-{key}-minimum")
+    search = st.text_input(f"Search {key}s", key=f"seo-{key}-search")
+    filtered = frame[frame["Type"].isin(types) & (frame["Impressions"] >= minimum)]
+    if search:
+        filtered = filtered[filtered["Subject"].str.contains(search, case=False, regex=False)]
+    st.dataframe(filtered, hide_index=True, width="stretch", column_config={"CTR": st.column_config.NumberColumn(format="percent"), "Evidence": st.column_config.TextColumn(width="large"), "Recommended action": st.column_config.TextColumn(width="large")})
+
+
 def render_seo(workflow: SEODashboardWorkflow | None = None) -> None:
     """Present technical auditing and read-only organic performance as peer views."""
     workflow = workflow or SEODashboardWorkflow()
     st.subheader("SEO Intelligence")
     st.caption("Technical audits and Google Search performance remain distinct evidence layers.")
-    audit_tab, performance_tab = st.tabs(["Technical audit", "Search performance"])
+    audit_tab, performance_tab, intelligence_tab = st.tabs(["Technical audit", "Search performance", "SEO intelligence"])
     with audit_tab:
         _render_technical_audit(workflow)
     with performance_tab:
         render_search_console()
+    with intelligence_tab:
+        _render_intelligence(workflow)
