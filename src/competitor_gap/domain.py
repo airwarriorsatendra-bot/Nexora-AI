@@ -15,7 +15,7 @@ class CompetitorPageObservation(NexoraModel):
 class CompetitiveScoreBreakdown(NexoraModel):
  model_config=ConfigDict(frozen=True,extra="forbid");gsc:int=0;serp:int=0;site:int=0;ga4:int=0;total:int=Field(ge=0,le=100)
 class ObservedSERPRow(NexoraModel):
- model_config=ConfigDict(frozen=True,extra="forbid");position:int;domain:str;url:str;is_target:bool=False
+ model_config=ConfigDict(frozen=True,extra="forbid");position:int;domain:str;url:str;title:str="";snippet:str="";is_target:bool=False
 class KeywordGap(NexoraModel):
  model_config=ConfigDict(frozen=True,extra="forbid");keyword:str;gap_type:KeywordGapType;flags:tuple[str,...]=();target_domain:str;target_position:int|None=None;target_position_label:str;best_competitor:str;competitor_position:int;competitors_ahead:int;search_depth:int;gsc_average_position:Decimal|None=None;gsc_impressions:int|None=None;gsc_clicks:int|None=None;gsc_ctr:Decimal|None=None;mapped_page:str|None=None;content_gap:ContentGapType;score:CompetitiveScoreBreakdown;priority:GapPriority;evidence:tuple[str,...];recommended_action:str;serp:tuple[ObservedSERPRow,...]=()
 class PageGapSummary(NexoraModel):
