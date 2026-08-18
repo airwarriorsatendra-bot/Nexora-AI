@@ -122,7 +122,7 @@ class ResearchSettings:
         models = {
             "openai": environment.get("OPENAI_MODEL", "gpt-4.1-mini"),
             "gemini": environment.get("GEMINI_MODEL", "gemini-2.0-flash"),
-            "groq": environment.get("GROQ_MODEL", "llama-3.3-70b-versatile"),
+            "groq": environment.get("GROQ_MODEL", "openai/gpt-oss-120b"),
             "nvidia": environment.get(ENV_NVIDIA_MODEL, "meta/llama-3.3-70b-instruct"),
             "claude": environment.get("CLAUDE_MODEL", "claude-3-5-haiku-latest"),
         }
