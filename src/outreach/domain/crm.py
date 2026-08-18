@@ -95,6 +95,11 @@ class OutreachReply(NexoraModel):
     provider_thread_id: str | None=None
     classification: ReplyClassification=ReplyClassification.UNKNOWN
     provider: str="manual"
+    sender: str=""
+    recipient: str=""
+    subject: str=""
+    snippet: str=""
+    observed_at: datetime=Field(default_factory=utc_now)
 
 
 class OutreachHistoryEvent(NexoraModel):

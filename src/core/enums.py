@@ -202,6 +202,7 @@ class MessageStatus(str, Enum):
     REPLIED = "replied"
     CANCELLED = "cancelled"
     SUPPRESSED = "suppressed"
+    SEND_OUTCOME_UNKNOWN = "send_outcome_unknown"
 
 
 class DeliveryAttemptStatus(str, Enum):

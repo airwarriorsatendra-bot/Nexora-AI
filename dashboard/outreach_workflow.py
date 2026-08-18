@@ -34,6 +34,10 @@ class OutreachDashboardWorkflow:
         app=self._factory()
         try: return await app.service.snapshot()
         finally: await app.aclose()
+    async def check_replies(self):
+        app=self._factory()
+        try:return await app.service.sync_replies()
+        finally:await app.aclose()
 
 
 def messages_to_dataframe(messages:list[object])->pd.DataFrame:

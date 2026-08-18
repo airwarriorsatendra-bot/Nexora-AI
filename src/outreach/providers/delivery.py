@@ -14,6 +14,9 @@ class DeliveryResult:
     error_code: str | None = None
     error_message: str | None = None
     rate_limited: bool = False
+    thread_id: str | None = None
+    label_ids: tuple[str, ...] = ()
+    outcome_unknown: bool = False
 
 
 class OutreachDeliveryProvider(ABC):

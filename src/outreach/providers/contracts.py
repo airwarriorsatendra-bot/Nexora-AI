@@ -1,6 +1,6 @@
 """Replaceable offline-safe Outreach provider contracts and deterministic fakes."""
 from __future__ import annotations
-from typing import Protocol,Sequence,runtime_checkable
+from typing import Any,Protocol,Sequence,runtime_checkable
 from src.outreach.domain.crm import OutreachContact,OutreachReply,VerificationState
 
 @runtime_checkable
@@ -18,7 +18,7 @@ class EmailVerificationProvider(Protocol):
 @runtime_checkable
 class ReplyProvider(Protocol):
  provider_name:str
- async def replies(self)->Sequence[OutreachReply]:...
+ async def replies(self,tracked_messages:Sequence[Any]=())->Sequence[OutreachReply]:...
  async def aclose(self)->None:...
 
 class FakeContactDiscoveryProvider:
@@ -36,5 +36,5 @@ class FakeEmailVerificationProvider:
 class FakeReplyProvider:
  provider_name="fake_reply"
  def __init__(self,replies=()):self.items=tuple(replies);self.calls=0
- async def replies(self):self.calls+=1;return self.items
+ async def replies(self,tracked_messages=()):self.calls+=1;return self.items
  async def aclose(self):return None

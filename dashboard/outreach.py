@@ -16,12 +16,17 @@ def render_outreach(_st:Any=None,_dataframe:Any=None,workflow:OutreachDashboardW
  except Exception:
   class EmptyAnalytics:
    prospects=contacts=sent=failed=bounced=replies=positive_replies=negative_replies=0;reply_rate=positive_reply_rate=bounce_rate=0.0
-  snapshot={"prospects":[],"contacts":[],"campaigns":[],"sequences":[],"steps":[],"messages":[],"replies":[],"followups":[],"suppressions":[],"history":[],"analytics":EmptyAnalytics()};st.error("Persisted outreach workspace could not be loaded.")
+  snapshot={"prospects":[],"contacts":[],"campaigns":[],"sequences":[],"steps":[],"messages":[],"replies":[],"followups":[],"suppressions":[],"history":[],"analytics":EmptyAnalytics(),"gmail_configured":False,"live_send_enabled":False,"sender_email":"","reply_provider_configured":False,"provider_name":"fake"};st.error("Persisted outreach workspace could not be loaded.")
  a=snapshot["analytics"]
  with st.container(horizontal=True):
   for label,value in (("Prospects",a.prospects),("Contacts found",a.contacts),("Messages sent",a.sent),("Replies",a.replies),("Positive replies",a.positive_replies),("Follow-ups due",len(snapshot["followups"])),("Suppressed",len(snapshot["suppressions"]))):st.metric(label,value,border=True)
  tabs=st.tabs(["Overview","Prospects","Contacts","Campaigns","Sequences","Messages","Replies","Follow-ups","Suppression","Analytics","History"])
  with tabs[0]:st.caption("Exact persisted funnel counts. Open rates and guaranteed backlink gains are not claimed.")
+ with st.container(border=True):
+  st.write({"Gmail credentials":"CONFIGURED" if snapshot.get("gmail_configured") else "MISSING","Sender":snapshot.get("sender_email") or "NOT CONFIGURED","Live sending":"ENABLED" if snapshot.get("live_send_enabled") else "DISABLED","Reply provider":"CONFIGURED" if snapshot.get("reply_provider_configured") else "MISSING"})
+  if st.button("Check replies",disabled=not snapshot.get("reply_provider_configured")):
+   try:found=_run(workflow.check_replies());st.success(f"Reply check completed: {len(found)} new observation(s).")
+   except Exception:st.error("Gmail replies could not be checked. No credentials or provider details are displayed.")
  for tab,key in zip((tabs[1],tabs[2],tabs[3],tabs[4],tabs[5],tabs[6],tabs[7],tabs[8],tabs[10]),("prospects","contacts","campaigns","steps","messages","replies","followups","suppressions","history")):
   with tab:st.dataframe(outreach_frame(snapshot[key]),hide_index=True,width="stretch") if snapshot[key] else st.info("No persisted records.")
  with tabs[9]:st.write({"reply_rate":a.reply_rate,"positive_reply_rate":a.positive_reply_rate,"bounce_rate":a.bounce_rate,"failed":a.failed})
@@ -45,9 +50,10 @@ def render_outreach(_st:Any=None,_dataframe:Any=None,workflow:OutreachDashboardW
  message=st.session_state.outreach_message
  if message and candidate:
   with st.container(border=True):st.write({"recipient":str(candidate.email),"subject":message.subject,"campaign":str(message.campaign_id),"sequence_step":message.sequence_step,"provider":"fake","expected_send_count":1});st.write(message.body)
-  confirm=st.checkbox("I reviewed the exact recipient, subject and rendered body")
-  if st.button("Record delivery dry-run",disabled=not confirm):
-   try:_run(workflow.send(message.message_id,True));st.success("Dry-run recorded. No email transmitted.")
+  mode=st.selectbox("Send mode",("DRY_RUN","LIVE"),index=0);confirm=st.checkbox("I reviewed the exact sender, recipient, subject, body, campaign, step, provider, mode, and count")
+  disabled=not confirm or (mode=="LIVE" and not snapshot.get("live_send_enabled"))
+  if st.button("Record dry-run" if mode=="DRY_RUN" else "Send one Gmail message",disabled=disabled):
+   try:_run(workflow.send(message.message_id,mode=="DRY_RUN"));st.success("Dry-run recorded. No email transmitted." if mode=="DRY_RUN" else "Gmail accepted the send request; delivery is not claimed.")
    except Exception as exc:st.error(str(exc))
  with st.container(horizontal=True):
   for label,key in (("Prospects CSV","prospects"),("Contacts CSV","contacts"),("Campaigns CSV","campaigns"),("Messages CSV","messages"),("Replies CSV","replies"),("Suppression CSV","suppressions")):st.download_button(label,outreach_frame(snapshot[key]).to_csv(index=False),f"{key}.csv","text/csv")

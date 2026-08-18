@@ -70,6 +70,7 @@ class OutreachMessage(NexoraModel):
     scheduled_at: datetime | None = None
     sent_at: datetime | None = None
     provider_message_id: str | None = None
+    provider_thread_id: str | None = None
     provider: str = "fake"
     error_state: str | None = None
     created_at: datetime = Field(default_factory=utc_now)

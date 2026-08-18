@@ -17,6 +17,7 @@ from src.outreach.providers.delivery import OutreachDeliveryProvider
 from src.outreach.repositories.outreach_repository import OutreachAutomationRepository
 from src.outreach.domain.crm import CampaignAnalytics,CRMState,OutreachContact,OutreachHistoryEvent,OutreachProspect,OutreachReply,OutreachSequence,ReplyClassification,SequenceStep,VerificationState
 from src.outreach.providers.contracts import ContactDiscoveryProvider,EmailVerificationProvider,ReplyProvider
+from src.outreach.providers.gmail import GmailSendOutcomeUnknown
 
 
 class OutreachService:
@@ -82,6 +83,7 @@ class OutreachService:
         if recipient.status in {RecipientStatus.REPLIED, RecipientStatus.SUPPRESSED, RecipientStatus.BOUNCED, RecipientStatus.REMOVED}: raise OutreachError("Recipient state blocks delivery.")
         if await self._repository.is_suppressed(str(candidate.email)):
             await self._repository.save_recipient(recipient.model_copy(update={"status": RecipientStatus.SUPPRESSED}))
+            await self._repository.save_message(message.model_copy(update={"status":MessageStatus.SUPPRESSED,"error_state":"suppressed"}))
             raise OutreachError("Recipient is suppressed and cannot receive outreach.")
         if message.sequence_step > 1 and recipient.status is not RecipientStatus.SENT: raise OutreachError("Follow-up requires a successful prior contact.")
         if await self._repository.sent_attempt_exists(message.message_id): return message.model_copy(update={"status": MessageStatus.SENT})
@@ -94,13 +96,16 @@ class OutreachService:
                 result=await self._delivery.send(recipient=str(candidate.email), subject=message.subject, body=message.body, idempotency_key=f"{message.campaign_id}:{message.recipient_id}:{message.sequence_step}")
                 transient=result.rate_limited or str(result.error_code or "").lower() in {"429","500","502","503","504","timeout","network"}
                 if result.accepted or not transient:break
+            except GmailSendOutcomeUnknown as exc:
+                await self._repository.save_attempt(message.message_id,self._delivery.provider_name,"send_outcome_unknown",error_code="uncertain",error_message="Provider outcome requires reconciliation.")
+                return await self._repository.save_message(message.model_copy(update={"status":MessageStatus.SEND_OUTCOME_UNKNOWN,"provider":self._delivery.provider_name,"error_state":"uncertain"}))
             except (TimeoutError,OSError) as exc:last_error=exc
             if attempt<2:await self._sleep(attempt+1)
         if result is None:
             await self._repository.save_attempt(message.message_id,self._delivery.provider_name,DeliveryAttemptStatus.FAILED.value,error_code="transport",error_message="Transient delivery failure.")
             return await self._repository.save_message(message.model_copy(update={"status":MessageStatus.FAILED}))
         if result.accepted:
-            sent = message.model_copy(update={"status": MessageStatus.SENT, "sent_at": utc_now(), "provider_message_id": result.provider_message_id})
+            sent = message.model_copy(update={"status": MessageStatus.SENT, "sent_at": utc_now(), "provider_message_id": result.provider_message_id,"provider_thread_id":result.thread_id,"provider":self._delivery.provider_name})
             await self._repository.save_attempt(message.message_id, self._delivery.provider_name, DeliveryAttemptStatus.ACCEPTED.value, result.provider_message_id)
             await self._repository.save_recipient(recipient.model_copy(update={"status": RecipientStatus.SENT, "last_contacted_at": sent.sent_at, "next_followup_at": sent.sent_at + timedelta(days=3)}))
             return await self._repository.save_message(sent)
@@ -157,17 +162,23 @@ class OutreachService:
     async def record_reply(self,reply:OutreachReply)->OutreachReply:
         value=await self._repository.save_reply(reply);message=await self._require_message(reply.message_id);await self._repository.save_message(message.model_copy(update={"status":MessageStatus.REPLIED}));recipient=await self._repository.get_recipient(message.recipient_id)
         if recipient:await self._repository.save_recipient(recipient.model_copy(update={"status":RecipientStatus.REPLIED,"next_followup_at":None}))
+        for pending in await self._repository.list_messages(message.campaign_id):
+            if pending.recipient_id==message.recipient_id and pending.sequence_step>message.sequence_step and pending.status in {MessageStatus.PREPARED,MessageStatus.QUEUED}:await self._repository.save_message(pending.model_copy(update={"status":MessageStatus.CANCELLED,"error_state":"reply_received"}))
         if reply.classification is ReplyClassification.UNSUBSCRIBE and recipient:
             candidate=await self._repository.get_candidate(recipient.candidate_id)
             if candidate:await self._repository.suppress(str(candidate.email),SuppressionReason.UNSUBSCRIBE)
         await self._event("message",message.message_id,"reply_received",reply.classification.value);return value
     async def sync_replies(self)->tuple[OutreachReply,...]:
         if self._reply_provider is None:return ()
-        values=tuple(await self._reply_provider.replies())
-        for value in values:await self.record_reply(value)
-        return values
+        values=tuple(await self._reply_provider.replies(await self._repository.list_all_messages()))
+        persisted=await self._repository.list_replies()
+        known_provider_ids={value.provider_message_id for value in persisted if value.provider_message_id}
+        known_message_ids={value.message_id for value in persisted}
+        new_values=tuple(value for value in values if (value.provider_message_id and value.provider_message_id not in known_provider_ids) or (not value.provider_message_id and value.message_id not in known_message_ids))
+        for value in new_values:await self.record_reply(value)
+        return new_values
     async def analytics(self)->CampaignAnalytics:
         prospects=await self._repository.list_prospects();contacts=await self._repository.list_contacts();messages=await self._repository.list_all_messages();replies=await self._repository.list_replies();return CampaignAnalytics(prospects=len(prospects),contacts=len(contacts),sent=sum(x.status in {MessageStatus.SENT,MessageStatus.REPLIED,MessageStatus.BOUNCED} for x in messages),failed=sum(x.status is MessageStatus.FAILED for x in messages),bounced=sum(x.status is MessageStatus.BOUNCED for x in messages),replies=len(replies),positive_replies=sum(x.classification is ReplyClassification.POSITIVE for x in replies),negative_replies=sum(x.classification is ReplyClassification.NEGATIVE for x in replies))
     async def snapshot(self)->dict[str,object]:
-        prospects=await self._repository.list_prospects();contacts=await self._repository.list_contacts();campaigns=await self._repository.list_campaigns();sequences=await self._repository.list_sequences();steps=await self._repository.list_sequence_steps();messages=await self._repository.list_all_messages();replies=await self._repository.list_replies();suppressions=await self._repository.list_suppressions();history=await self._repository.list_history();analytics=await self.analytics();followups=[x for x in messages if x.scheduled_at and x.status in {MessageStatus.PREPARED,MessageStatus.QUEUED}];return locals()
+        prospects=await self._repository.list_prospects();contacts=await self._repository.list_contacts();campaigns=await self._repository.list_campaigns();sequences=await self._repository.list_sequences();steps=await self._repository.list_sequence_steps();messages=await self._repository.list_all_messages();replies=await self._repository.list_replies();suppressions=await self._repository.list_suppressions();history=await self._repository.list_history();analytics=await self.analytics();followups=[x for x in messages if x.scheduled_at and x.status in {MessageStatus.PREPARED,MessageStatus.QUEUED}];provider_name=self._delivery.provider_name;gmail_configured=provider_name=="GMAIL";live_send_enabled=bool(getattr(self._delivery,"live_enabled",False));sender_email=str(getattr(self._delivery,"sender_email","") or "");reply_provider_configured=self._reply_provider is not None;return locals()
     async def _event(self,entity_type:str,entity_id:UUID,event_type:str,detail:str="")->None:await self._repository.save_history(OutreachHistoryEvent(entity_type=entity_type,entity_id=entity_id,event_type=event_type,detail=detail))
