@@ -112,3 +112,7 @@ class GoogleAdsError(ServiceError):
 
 class MetaAdsError(ServiceError):
     """Meta Ads import or analysis failed."""
+
+
+class SearchConsoleError(ServiceError):
+    """Google Search Console retrieval or analysis failed."""

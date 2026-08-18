@@ -157,6 +157,15 @@ ENV_GOOGLE_CSE_ID: str = "GOOGLE_CSE_ID"
 
 ENV_PERPLEXITY_API_KEY: str = "PERPLEXITY_API_KEY"
 
+# Google Search Console (OAuth refresh-token flow, read-only scope)
+ENV_GSC_CLIENT_ID: str = "GSC_CLIENT_ID"
+ENV_GSC_CLIENT_SECRET: str = "GSC_CLIENT_SECRET"
+ENV_GSC_REFRESH_TOKEN: str = "GSC_REFRESH_TOKEN"
+GSC_API_BASE_URL: str = "https://www.googleapis.com/webmasters/v3"
+GSC_TOKEN_URL: str = "https://oauth2.googleapis.com/token"
+GSC_TIMEOUT_SECONDS: int = 30
+GSC_MAX_ROW_LIMIT: int = 25_000
+
 ENV_DATABASE_URL: str = "DATABASE_URL"
 
 ENV_LOG_LEVEL: str = "LOG_LEVEL"

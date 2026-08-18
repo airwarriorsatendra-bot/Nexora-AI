@@ -15,6 +15,7 @@ from src.local_seo.repository import LocalSEORepository
 from src.meta_ads.repository import MetaAdsRepository
 from src.outreach.repositories.outreach_repository import OutreachAutomationRepository
 from src.seo.repositories.seo_audit_repository import SEOAuditRepository
+from src.search_console.repository import SearchConsoleRepository
 
 
 @dataclass(frozen=True, slots=True)
@@ -42,6 +43,7 @@ class AnalyticsApplication:
     backlink_repository: BacklinkRepository
     outreach_repository: OutreachAutomationRepository
     local_seo_repository: LocalSEORepository
+    search_console_repository: SearchConsoleRepository
     _closed: bool = False
 
     async def aclose(self) -> None:
@@ -61,6 +63,7 @@ class AnalyticsComposition:
         backlink_repository_factory: Callable[[Path], BacklinkRepository] = BacklinkRepository,
         outreach_repository_factory: Callable[[Path], OutreachAutomationRepository] = OutreachAutomationRepository,
         local_seo_repository_factory: Callable[[Path], LocalSEORepository] = LocalSEORepository,
+        search_console_repository_factory: Callable[[Path], SearchConsoleRepository] = SearchConsoleRepository,
     ) -> None:
         self._settings = settings
         self._analytics_repository_factory = analytics_repository_factory
@@ -70,6 +73,7 @@ class AnalyticsComposition:
         self._backlink_repository_factory = backlink_repository_factory
         self._outreach_repository_factory = outreach_repository_factory
         self._local_seo_repository_factory = local_seo_repository_factory
+        self._search_console_repository_factory = search_console_repository_factory
 
     def build(self) -> AnalyticsApplication:
         path = self._settings.database_path
@@ -82,4 +86,5 @@ class AnalyticsComposition:
             backlink_repository=self._backlink_repository_factory(path),
             outreach_repository=self._outreach_repository_factory(path),
             local_seo_repository=self._local_seo_repository_factory(path),
+            search_console_repository=self._search_console_repository_factory(path),
         )

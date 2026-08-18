@@ -8,6 +8,7 @@ from decimal import Decimal
 from src.analytics.domain import AnalyticsInsight, AnalyticsReport, ChannelKPI, Period
 from src.google_ads.domain import GoogleAdsAudit
 from src.meta_ads.domain import MetaAudit
+from src.search_console.domain import SearchPerformanceSnapshot
 
 
 class AnalyticsService:
@@ -18,6 +19,7 @@ class AnalyticsService:
         period: Period,
         google: GoogleAdsAudit | None = None,
         meta: MetaAudit | None = None,
+        search_console: SearchPerformanceSnapshot | None = None,
         *,
         extra_kpis: Iterable[ChannelKPI] = (),
     ) -> AnalyticsReport:
@@ -58,10 +60,20 @@ class AnalyticsService:
                 f"Google Ads currency is {paid_periods[0][2]}; Meta Ads currency is {paid_periods[1][2]}.",
                 "Keep monetary metrics in separate currency groups; no FX conversion is applied.", ("GOOGLE_ADS", "META_ADS"), Decimal("1"),
             ))
+        if search_console is not None:
+            source_period = Period(date_from=search_console.period.start_date, date_to=search_console.period.end_date)
+            totals = search_console.totals
+            record_id = str(search_console.snapshot_id)
+            kpis.extend((
+                ChannelKPI(name="organic_clicks", value=totals.clicks, unit="count", source_module="GOOGLE_SEARCH_CONSOLE", source_system=search_console.provider, period=source_period, source_record_id=record_id),
+                ChannelKPI(name="organic_impressions", value=totals.impressions, unit="count", source_module="GOOGLE_SEARCH_CONSOLE", source_system=search_console.provider, period=source_period, source_record_id=record_id),
+                ChannelKPI(name="organic_ctr", value=totals.ctr, unit="ratio", source_module="GOOGLE_SEARCH_CONSOLE", source_system=search_console.provider, period=source_period, source_record_id=record_id),
+                ChannelKPI(name="organic_average_position", value=totals.average_position, unit="position", source_module="GOOGLE_SEARCH_CONSOLE", source_system=search_console.provider, period=source_period, source_record_id=record_id),
+            ))
         return AnalyticsReport(period=period, kpis=kpis, insights=insights)
 
-    async def build_and_save(self, period: Period, repository: object, google: GoogleAdsAudit | None = None, meta: MetaAudit | None = None, *, extra_kpis: Iterable[ChannelKPI] = ()) -> AnalyticsReport:
-        report = self.build(period, google, meta, extra_kpis=extra_kpis)
+    async def build_and_save(self, period: Period, repository: object, google: GoogleAdsAudit | None = None, meta: MetaAudit | None = None, search_console: SearchPerformanceSnapshot | None = None, *, extra_kpis: Iterable[ChannelKPI] = ()) -> AnalyticsReport:
+        report = self.build(period, google, meta, search_console, extra_kpis=extra_kpis)
         await repository.save(report)
         return report
 
