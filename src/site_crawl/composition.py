@@ -5,6 +5,7 @@ import os
 from dataclasses import dataclass
 from pathlib import Path
 from urllib.parse import urljoin
+from urllib.parse import urlsplit
 
 from src.core.constants import ENV_DATABASE_URL
 from src.ga4.domain import GA4Dimension
@@ -55,13 +56,25 @@ class SiteCrawlComposition:
             gsc_repo, ga4_repo, rank_repo = SearchConsoleRepository(path), GA4Repository(path), RankTrackingRepository(path)
             gsc_snapshot = await gsc_repo.latest(dimensions=(SearchDimension.PAGE,)); ga4_snapshot = await ga4_repo.latest((GA4Dimension.LANDING_PAGE,)); checks = await rank_repo.latest_checks()
             gsc, ga4, ranks = {}, {}, {}
+            start_host = (urlsplit(start_url).hostname or "").lower().removeprefix("www.")
+            gsc_matches_site = False
             if gsc_snapshot:
+                property_value = gsc_snapshot.property.site_url.strip()
+                if property_value.startswith("sc-domain:"):
+                    property_host = property_value.removeprefix("sc-domain:").lower().removeprefix("www.")
+                else:
+                    property_host = (urlsplit(property_value).hostname or "").lower().removeprefix("www.")
+                gsc_matches_site = property_host == start_host
+            if gsc_snapshot and gsc_matches_site:
                 for row in gsc_snapshot.records:
                     value = row.dimension_value(SearchDimension.PAGE)
                     if value:
-                        try: gsc[normalize_url(value)] = row.impressions
+                        try:
+                            normalized = normalize_url(value)
+                            if (urlsplit(normalized).hostname or "").lower().removeprefix("www.") == start_host:
+                                gsc[normalized] = row.impressions
                         except Exception: pass
-            if ga4_snapshot:
+            if ga4_snapshot and gsc_matches_site:
                 for row in ga4_snapshot.records:
                     if row.keys:
                         try: ga4[normalize_url(urljoin(start_url, row.keys[0]))] = int(row.metrics.get("sessions", 0))
@@ -70,7 +83,10 @@ class SiteCrawlComposition:
             for check in checks:
                 item = keywords.get(check.keyword_id)
                 if item and item.target_url and check.target_position is not None:
-                    try: ranks[normalize_url(item.target_url)] = check.target_position
+                    try:
+                        normalized = normalize_url(item.target_url)
+                        if (urlsplit(normalized).hostname or "").lower().removeprefix("www.") == start_host:
+                            ranks[normalized] = check.target_position
                     except Exception: pass
             return {"gsc":gsc,"ga4":ga4,"ranks":ranks}
         return load

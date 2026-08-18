@@ -4,6 +4,8 @@ from __future__ import annotations
 import asyncio
 import tempfile
 import unittest
+from datetime import date
+from decimal import Decimal
 from pathlib import Path
 from unittest.mock import AsyncMock, patch
 
@@ -16,6 +18,8 @@ from src.research.services.crawler_service import CrawlerService
 from src.site_crawl.composition import SiteCrawlComposition, SiteCrawlSettings
 from src.site_crawl.crawler import BoundedSiteCrawler, FetchResult, SecurePageFetcher, normalize_url
 from src.site_crawl.domain import SiteCrawlRequest
+from src.search_console.domain import ReportingPeriod, SearchConsoleProperty, SearchDimension, SearchPerformanceRecord, SearchPerformanceSnapshot
+from src.search_console.repository import SearchConsoleRepository
 
 
 PAGES = {
@@ -101,6 +105,12 @@ class SiteCrawlTests(unittest.IsolatedAsyncioTestCase):
         crawl=await app.service.run(SiteCrawlRequest(start_url="https://example.test/",max_pages=8,max_depth=3)); await app.aclose()
         item=next(o for o in crawl.opportunities if o.target_url.endswith("product-a")); joined=" ".join(item.evidence)
         self.assertIn("GSC impressions",joined); self.assertIn("GA4 sessions",joined); self.assertIn("Tracked SERP position",joined)
+
+    async def test_composition_rejects_cross_site_persisted_evidence(self):
+        snapshot=SearchPerformanceSnapshot(property=SearchConsoleProperty(site_url="sc-domain:unrelated.test",permission_level="siteOwner"),period=ReportingPeriod(start_date=date(2026,1,1),end_date=date(2026,1,2)),dimensions=(SearchDimension.PAGE,),records=(SearchPerformanceRecord(dimensions=(SearchDimension.PAGE,),keys=("https://unrelated.test/page",),clicks=1,impressions=100,ctr=Decimal("0.01"),average_position=Decimal("4")),))
+        await SearchConsoleRepository(self.path).save(snapshot)
+        evidence=await SiteCrawlComposition._evidence_loader(self.path)("https://example.test/")
+        self.assertEqual(evidence,{"gsc":{},"ga4":{},"ranks":{}})
 
     async def test_dashboard_persisted_flow_exports_and_no_auto_crawl(self):
         await self.app.service.run(SiteCrawlRequest(start_url="https://example.test/",max_pages=5,max_depth=2))
