@@ -10,6 +10,8 @@ import streamlit as st
 
 from dashboard.search_console import render_search_console
 from dashboard.seo_workflow import SEODashboardWorkflow
+from dashboard.rank_tracking import render_rank_tracking
+from dashboard.rank_tracking_workflow import RankTrackingDashboardWorkflow
 from src.seo.domain.seo_intelligence import SEOIntelligenceReport, SEOOpportunity
 from src.seo.dto.seo_audit_response import SEOAuditResponse
 
@@ -83,8 +85,9 @@ def _render_technical_audit(workflow: SEODashboardWorkflow) -> None:
     st.download_button("Export findings CSV", filtered.to_csv(index=False), "nexora_seo_findings.csv", "text/csv")
 
 
-def _opportunity_frame(items: tuple[SEOOpportunity, ...]) -> pd.DataFrame:
-    return pd.DataFrame([{"Priority": item.priority_score, "Type": item.opportunity_type.value.replace("_", " ").title(), "Subject": item.subject, "Clicks": item.clicks, "Impressions": item.impressions, "CTR": float(item.ctr), "Position": float(item.average_position), "Trend": item.comparison.trend.value if item.comparison else "NOT AVAILABLE", "Evidence": " • ".join(item.evidence), "Recommended action": item.recommendation} for item in items])
+def _opportunity_frame(items: tuple[SEOOpportunity, ...], tracked: dict[str, tuple[Any, Any]] | None = None) -> pd.DataFrame:
+    tracked = tracked or {}
+    return pd.DataFrame([{"Priority": item.priority_score, "Type": item.opportunity_type.value.replace("_", " ").title(), "Subject": item.subject, "Clicks": item.clicks, "Impressions": item.impressions, "CTR": float(item.ctr), "GSC Avg Position": float(item.average_position), "Tracked SERP Position": tracked[item.subject][0].position_label if item.subject in tracked else "NOT AVAILABLE", "Tracked Change": tracked[item.subject][1].change_type.value if item.subject in tracked else "NOT AVAILABLE", "Trend": item.comparison.trend.value if item.comparison else "NOT AVAILABLE", "Evidence": " • ".join(item.evidence), "Recommended action": item.recommendation} for item in items])
 
 
 def _render_intelligence(workflow: SEODashboardWorkflow) -> None:
@@ -107,13 +110,31 @@ def _render_intelligence(workflow: SEODashboardWorkflow) -> None:
         st.metric("CTR opportunities", sum(item.opportunity_type.value == "LOW_CTR" for item in opportunities), border=True)
     for note in report.notes:
         st.info(note)
-    frame = _opportunity_frame(opportunities)
+    rank_workflow = RankTrackingDashboardWorkflow()
+    try:
+        rank_data = _run_async(rank_workflow.snapshot())
+        tracked = {keyword.keyword: (check, change) for keyword, check, change in rank_data["rows"] if keyword}
+    except Exception:
+        tracked = {}
+    frame = _opportunity_frame(opportunities, tracked)
     st.subheader("Priority opportunities")
     if frame.empty:
         st.info("No deterministic opportunities were identified in persisted source snapshots.")
         return
     st.dataframe(frame.head(25), hide_index=True, width="stretch", column_config={"CTR": st.column_config.NumberColumn(format="percent"), "Evidence": st.column_config.TextColumn(width="large"), "Recommended action": st.column_config.TextColumn(width="large")})
-    query_frame, page_frame = _opportunity_frame(report.query_opportunities), _opportunity_frame(report.page_opportunities)
+    query_frame, page_frame = _opportunity_frame(report.query_opportunities, tracked), _opportunity_frame(report.page_opportunities, tracked)
+    query_candidates = tuple(item for item in report.query_opportunities if item.subject_kind == "query")
+    if query_candidates:
+        with st.form("seo-opportunity-to-rank"):
+            candidate = st.selectbox("GSC opportunity", query_candidates, format_func=lambda item: item.subject)
+            target = st.text_input("Target domain for tracking")
+            promote = st.form_submit_button("Add to Rank Tracker")
+        if promote:
+            try:
+                _run_async(rank_workflow.add(candidate.subject, target, "", "US", "desktop", candidate))
+                st.success("GSC opportunity added to Rank Tracking. GSC and tracked positions remain separate.")
+            except Exception:
+                st.error("The selected opportunity could not be added to Rank Tracking.")
     query_tab, page_tab, bridge_tab = st.tabs(["Query intelligence", "Page intelligence", "GSC + GA4 insights"])
     with query_tab:
         _render_filtered("Query opportunities", query_frame, "query")
@@ -148,10 +169,12 @@ def render_seo(workflow: SEODashboardWorkflow | None = None) -> None:
     workflow = workflow or SEODashboardWorkflow()
     st.subheader("SEO Intelligence")
     st.caption("Technical audits and Google Search performance remain distinct evidence layers.")
-    audit_tab, performance_tab, intelligence_tab = st.tabs(["Technical audit", "Search performance", "SEO intelligence"])
+    audit_tab, performance_tab, intelligence_tab, rank_tab = st.tabs(["Technical audit", "Search performance", "SEO intelligence", "Rank tracking"])
     with audit_tab:
         _render_technical_audit(workflow)
     with performance_tab:
         render_search_console()
     with intelligence_tab:
         _render_intelligence(workflow)
+    with rank_tab:
+        render_rank_tracking()
