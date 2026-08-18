@@ -30,7 +30,16 @@ class OutreachDashboardWorkflow:
         app=self._factory()
         try: return await app.service.send(SendMessageRequest(message_id=message_id,dry_run=dry_run))
         finally: await app.aclose()
+    async def snapshot(self):
+        app=self._factory()
+        try: return await app.service.snapshot()
+        finally: await app.aclose()
 
 
 def messages_to_dataframe(messages:list[object])->pd.DataFrame:
     return pd.DataFrame([message.model_dump(mode="json") for message in messages])
+
+def outreach_frame(items): return pd.DataFrame([item.model_dump(mode="json") if hasattr(item,"model_dump") else item for item in items])
+def outreach_report(snapshot):
+    analytics=snapshot["analytics"]
+    return "# Nexora Outreach Report\n\nOffline evidence and explicit send events only.\n\n"+"\n".join((f"- Prospects: {analytics.prospects}",f"- Contacts: {analytics.contacts}",f"- Messages sent: {analytics.sent}",f"- Replies: {analytics.replies}","- Open rates and guaranteed backlink gains are not claimed."))

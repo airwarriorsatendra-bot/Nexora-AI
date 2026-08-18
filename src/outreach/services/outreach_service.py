@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import re
+import asyncio
 from datetime import timedelta
 from urllib.parse import urlparse
 from uuid import UUID
@@ -14,6 +15,8 @@ from src.outreach.domain.models import Campaign, CampaignRecipient, OutreachCand
 from src.outreach.dto.requests import AddCandidateRequest, AddRecipientRequest, CreateCampaignRequest, PrepareMessageRequest, SendMessageRequest
 from src.outreach.providers.delivery import OutreachDeliveryProvider
 from src.outreach.repositories.outreach_repository import OutreachAutomationRepository
+from src.outreach.domain.crm import CampaignAnalytics,CRMState,OutreachContact,OutreachHistoryEvent,OutreachProspect,OutreachReply,OutreachSequence,ReplyClassification,SequenceStep,VerificationState
+from src.outreach.providers.contracts import ContactDiscoveryProvider,EmailVerificationProvider,ReplyProvider
 
 
 class OutreachService:
@@ -25,11 +28,18 @@ class OutreachService:
         CampaignStatus.READY: {CampaignStatus.ACTIVE, CampaignStatus.PAUSED, CampaignStatus.CANCELLED},
         CampaignStatus.ACTIVE: {CampaignStatus.PAUSED, CampaignStatus.COMPLETED, CampaignStatus.CANCELLED},
         CampaignStatus.PAUSED: {CampaignStatus.ACTIVE, CampaignStatus.CANCELLED},
-        CampaignStatus.COMPLETED: set(), CampaignStatus.CANCELLED: set(),
+        CampaignStatus.COMPLETED: {CampaignStatus.ARCHIVED}, CampaignStatus.CANCELLED: {CampaignStatus.ARCHIVED},CampaignStatus.ARCHIVED:set(),
     }
 
-    def __init__(self, repository: OutreachAutomationRepository, delivery_provider: OutreachDeliveryProvider, logger: logging.Logger | None = None) -> None:
+    _CRM_TRANSITIONS={
+        CRMState.NEW:{CRMState.RESEARCHING,CRMState.CONTACT_FOUND,CRMState.ARCHIVED},CRMState.RESEARCHING:{CRMState.CONTACT_FOUND,CRMState.DO_NOT_CONTACT,CRMState.ARCHIVED},CRMState.CONTACT_FOUND:{CRMState.READY_FOR_OUTREACH,CRMState.DO_NOT_CONTACT},CRMState.READY_FOR_OUTREACH:{CRMState.IN_CAMPAIGN,CRMState.DO_NOT_CONTACT},CRMState.IN_CAMPAIGN:{CRMState.CONTACTED,CRMState.DO_NOT_CONTACT},CRMState.CONTACTED:{CRMState.FOLLOW_UP_DUE,CRMState.REPLIED,CRMState.NO_RESPONSE,CRMState.BOUNCED},CRMState.FOLLOW_UP_DUE:{CRMState.CONTACTED,CRMState.REPLIED,CRMState.NO_RESPONSE},CRMState.REPLIED:{CRMState.POSITIVE_REPLY,CRMState.NEGATIVE_REPLY,CRMState.WON,CRMState.LOST},CRMState.POSITIVE_REPLY:{CRMState.WON,CRMState.LOST},CRMState.NEGATIVE_REPLY:{CRMState.LOST},CRMState.NO_RESPONSE:{CRMState.ARCHIVED},CRMState.BOUNCED:{CRMState.DO_NOT_CONTACT},CRMState.UNSUBSCRIBED:{CRMState.DO_NOT_CONTACT},CRMState.DO_NOT_CONTACT:{CRMState.ARCHIVED},CRMState.WON:{CRMState.ARCHIVED},CRMState.LOST:{CRMState.ARCHIVED},CRMState.ARCHIVED:set(),
+    }
+
+    def __init__(self, repository: OutreachAutomationRepository, delivery_provider: OutreachDeliveryProvider, logger: logging.Logger | None = None, *, contact_provider:ContactDiscoveryProvider|None=None,verification_provider:EmailVerificationProvider|None=None,reply_provider:ReplyProvider|None=None,max_emails_per_run:int=10,max_emails_per_day:int=50,sleep=asyncio.sleep) -> None:
         self._repository, self._delivery = repository, delivery_provider
+        self._contact_provider,self._verification_provider,self._reply_provider=contact_provider,verification_provider,reply_provider
+        self.max_emails_per_run=max(1,max_emails_per_run);self.max_emails_per_day=max(1,max_emails_per_day)
+        self._sleep=sleep
         self._logger = logger or logging.getLogger(__name__)
 
     async def add_candidate(self, request: AddCandidateRequest) -> OutreachCandidate:
@@ -78,7 +88,17 @@ class OutreachService:
         if request.dry_run:
             await self._repository.save_attempt(message.message_id, self._delivery.provider_name, DeliveryAttemptStatus.SIMULATED.value)
             return await self._repository.save_message(message.model_copy(update={"status": MessageStatus.DRY_RUN}))
-        result = await self._delivery.send(recipient=str(candidate.email), subject=message.subject, body=message.body, idempotency_key=f"{message.campaign_id}:{message.recipient_id}:{message.sequence_step}")
+        result=None;last_error=None
+        for attempt in range(3):
+            try:
+                result=await self._delivery.send(recipient=str(candidate.email), subject=message.subject, body=message.body, idempotency_key=f"{message.campaign_id}:{message.recipient_id}:{message.sequence_step}")
+                transient=result.rate_limited or str(result.error_code or "").lower() in {"429","500","502","503","504","timeout","network"}
+                if result.accepted or not transient:break
+            except (TimeoutError,OSError) as exc:last_error=exc
+            if attempt<2:await self._sleep(attempt+1)
+        if result is None:
+            await self._repository.save_attempt(message.message_id,self._delivery.provider_name,DeliveryAttemptStatus.FAILED.value,error_code="transport",error_message="Transient delivery failure.")
+            return await self._repository.save_message(message.model_copy(update={"status":MessageStatus.FAILED}))
         if result.accepted:
             sent = message.model_copy(update={"status": MessageStatus.SENT, "sent_at": utc_now(), "provider_message_id": result.provider_message_id})
             await self._repository.save_attempt(message.message_id, self._delivery.provider_name, DeliveryAttemptStatus.ACCEPTED.value, result.provider_message_id)
@@ -105,7 +125,49 @@ class OutreachService:
         if value is None: raise OutreachError("Outreach message was not found.")
         return value
     def _render(self, template:str,candidate:OutreachCandidate)->str:
-        values={"contact_name":candidate.contact_name or "there","company_name":candidate.domain,"domain":candidate.domain,"website_url":str(candidate.website_url),"target_url":"","opportunity_type":""}
+        values={"contact_name":candidate.contact_name or "there","first_name":(candidate.contact_name.split()[0] if candidate.contact_name else "there"),"company_name":candidate.domain,"domain":candidate.domain,"website_url":str(candidate.website_url),"target_url":"","target_page":"","relevant_page":"","opportunity_type":"","evidence_reason":""}
         missing={name for name in self._VARIABLE.findall(template) if name not in values}
         if missing: raise OutreachError(f"Template has unsupported variables: {', '.join(sorted(missing))}.")
         return self._VARIABLE.sub(lambda match: values[match.group(1)],template).strip()
+
+    async def import_handoff(self,handoff)->OutreachProspect:
+        value=OutreachProspect(prospect_id=handoff.prospect_id,domain=handoff.domain,representative_url=handoff.representative_url,target_page=handoff.target_page,opportunity_type=handoff.opportunity_type.value,risk=handoff.risk,relevance=handoff.relevance,score=handoff.score,priority=handoff.priority.value,contactability=handoff.contactability,discovery_source=handoff.discovery_source,evidence_summary=handoff.evidence_summary,moz_domain_authority=handoff.authority_evidence.domain_authority if handoff.authority_evidence else None,moz_page_authority=handoff.authority_evidence.page_authority if handoff.authority_evidence else None,moz_spam_score=handoff.authority_evidence.spam_score if handoff.authority_evidence else None)
+        await self._repository.save_prospect(value);await self._event("prospect",value.prospect_id,"imported","Beta 14 evidence preserved without recalculation.");return value
+    async def transition_prospect(self,prospect:OutreachProspect,target:CRMState)->OutreachProspect:
+        if target not in self._CRM_TRANSITIONS[prospect.state]:raise OutreachError(f"Prospect cannot transition from {prospect.state.value} to {target.value}.")
+        changed=prospect.model_copy(update={"state":target,"last_action_at":utc_now()});await self._repository.save_prospect(changed);await self._event("prospect",changed.prospect_id,"state_changed",f"{prospect.state.value}->{target.value}");return changed
+    async def add_contact(self,contact:OutreachContact)->OutreachContact:
+        value=await self._repository.save_contact(contact);await self._event("contact",value.contact_id,"contact_saved",value.source);return value
+    async def discover_contacts(self,prospect:OutreachProspect)->tuple[OutreachContact,...]:
+        if self._contact_provider is None:return ()
+        values=tuple(await self._contact_provider.discover(prospect.domain))
+        for value in values:await self.add_contact(value.model_copy(update={"prospect_id":prospect.prospect_id}))
+        return values
+    async def verify_contact(self,contact:OutreachContact)->OutreachContact:
+        if self._verification_provider is None:return contact
+        state=await self._verification_provider.verify(str(contact.email));changed=contact.model_copy(update={"verification_state":state});await self._repository.save_contact(changed)
+        if state is VerificationState.INVALID:await self._repository.suppress(str(contact.email),SuppressionReason.INVALID_ADDRESS)
+        return changed
+    async def create_sequence(self,name:str,steps:list[SequenceStep])->OutreachSequence:
+        sequence=await self._repository.save_sequence(OutreachSequence(name=name))
+        for step in steps:
+            if step.sequence_id!=sequence.sequence_id:step=step.model_copy(update={"sequence_id":sequence.sequence_id})
+            await self._repository.save_sequence_step(step)
+        return sequence
+    async def record_reply(self,reply:OutreachReply)->OutreachReply:
+        value=await self._repository.save_reply(reply);message=await self._require_message(reply.message_id);await self._repository.save_message(message.model_copy(update={"status":MessageStatus.REPLIED}));recipient=await self._repository.get_recipient(message.recipient_id)
+        if recipient:await self._repository.save_recipient(recipient.model_copy(update={"status":RecipientStatus.REPLIED,"next_followup_at":None}))
+        if reply.classification is ReplyClassification.UNSUBSCRIBE and recipient:
+            candidate=await self._repository.get_candidate(recipient.candidate_id)
+            if candidate:await self._repository.suppress(str(candidate.email),SuppressionReason.UNSUBSCRIBE)
+        await self._event("message",message.message_id,"reply_received",reply.classification.value);return value
+    async def sync_replies(self)->tuple[OutreachReply,...]:
+        if self._reply_provider is None:return ()
+        values=tuple(await self._reply_provider.replies())
+        for value in values:await self.record_reply(value)
+        return values
+    async def analytics(self)->CampaignAnalytics:
+        prospects=await self._repository.list_prospects();contacts=await self._repository.list_contacts();messages=await self._repository.list_all_messages();replies=await self._repository.list_replies();return CampaignAnalytics(prospects=len(prospects),contacts=len(contacts),sent=sum(x.status in {MessageStatus.SENT,MessageStatus.REPLIED,MessageStatus.BOUNCED} for x in messages),failed=sum(x.status is MessageStatus.FAILED for x in messages),bounced=sum(x.status is MessageStatus.BOUNCED for x in messages),replies=len(replies),positive_replies=sum(x.classification is ReplyClassification.POSITIVE for x in replies),negative_replies=sum(x.classification is ReplyClassification.NEGATIVE for x in replies))
+    async def snapshot(self)->dict[str,object]:
+        prospects=await self._repository.list_prospects();contacts=await self._repository.list_contacts();campaigns=await self._repository.list_campaigns();sequences=await self._repository.list_sequences();steps=await self._repository.list_sequence_steps();messages=await self._repository.list_all_messages();replies=await self._repository.list_replies();suppressions=await self._repository.list_suppressions();history=await self._repository.list_history();analytics=await self.analytics();followups=[x for x in messages if x.scheduled_at and x.status in {MessageStatus.PREPARED,MessageStatus.QUEUED}];return locals()
+    async def _event(self,entity_type:str,entity_id:UUID,event_type:str,detail:str="")->None:await self._repository.save_history(OutreachHistoryEvent(entity_type=entity_type,entity_id=entity_id,event_type=event_type,detail=detail))

@@ -169,6 +169,7 @@ class CampaignStatus(str, Enum):
     PAUSED = "paused"
     COMPLETED = "completed"
     CANCELLED = "cancelled"
+    ARCHIVED = "archived"
 
 
 class CampaignObjective(str, Enum):
@@ -195,6 +196,12 @@ class MessageStatus(str, Enum):
     DRY_RUN = "dry_run"
     SENT = "sent"
     FAILED = "failed"
+    QUEUED = "queued"
+    SENDING = "sending"
+    BOUNCED = "bounced"
+    REPLIED = "replied"
+    CANCELLED = "cancelled"
+    SUPPRESSED = "suppressed"
 
 
 class DeliveryAttemptStatus(str, Enum):
@@ -210,6 +217,7 @@ class SuppressionReason(str, Enum):
     HARD_BOUNCE = "hard_bounce"
     INVALID_ADDRESS = "invalid_address"
     COMPLAINT = "complaint"
+    DO_NOT_CONTACT = "do_not_contact"
 
 
 # ============================================================================

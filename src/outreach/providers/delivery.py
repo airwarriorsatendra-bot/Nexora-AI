@@ -26,6 +26,10 @@ class OutreachDeliveryProvider(ABC):
         raise NotImplementedError
 
 
+# Explicit Beta 15 name; the legacy contract remains a compatibility alias.
+EmailSendProvider = OutreachDeliveryProvider
+
+
 class FakeDeliveryProvider(OutreachDeliveryProvider):
     """Deterministic test/development provider that never transmits email."""
 

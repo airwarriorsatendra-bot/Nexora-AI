@@ -35,6 +35,12 @@ class Campaign(NexoraModel):
     name: str = Field(min_length=1, max_length=200)
     description: str = Field(default="", max_length=2_000)
     objective: CampaignObjective = CampaignObjective.GENERAL
+    target_opportunity_type: str | None = None
+    owner_context: str = ""
+    sequence_id: UUID | None = None
+    prospect_count: int = Field(default=0, ge=0)
+    provider: str = "fake"
+    send_mode: str = "offline"
     status: CampaignStatus = CampaignStatus.DRAFT
     created_at: datetime = Field(default_factory=utc_now)
     updated_at: datetime = Field(default_factory=utc_now)
@@ -64,4 +70,6 @@ class OutreachMessage(NexoraModel):
     scheduled_at: datetime | None = None
     sent_at: datetime | None = None
     provider_message_id: str | None = None
+    provider: str = "fake"
+    error_state: str | None = None
     created_at: datetime = Field(default_factory=utc_now)
