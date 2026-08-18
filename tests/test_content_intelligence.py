@@ -26,6 +26,8 @@ class ContentIntelligenceTests(unittest.TestCase):
   payload=(b.model_dump_json()+md).lower()
   for claim in ("domain authority","guaranteed ranking improvement"):self.assertNotIn(claim,payload)
   self.assertIn("search volume, keyword difficulty, competitor traffic, authority metrics, and guaranteed outcomes are not available",payload)
+ def test_question_brief_includes_deterministic_aeo_geo_sections(self):
+  b=ContentIntelligenceService().generate(self.gap(query="how to choose lingerie"),page=CrawledPage(url="https://example.com/best-lingerie",normalized_url="https://example.com/best-lingerie",status_code=200,content_type="text/html",title="Guide",h1s=("Guide",),depth=1,indexability=IndexabilitySignal.INDEXABLE));md=ContentIntelligenceService.markdown(b);self.assertTrue(b.aeo_opportunities);self.assertTrue(b.geo_readiness);self.assertTrue(b.direct_answer_suggestions);self.assertIn("## AEO opportunities",md);self.assertIn("## GEO readiness",md);self.assertIn("not ranking or AI-citation guarantees",md)
  def test_dashboard_explicit_generation_and_exports(self):
   brief=ContentIntelligenceService().generate(self.gap())
   class Workflow:
