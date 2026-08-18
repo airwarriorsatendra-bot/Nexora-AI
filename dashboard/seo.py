@@ -12,6 +12,7 @@ from dashboard.search_console import render_search_console
 from dashboard.seo_workflow import SEODashboardWorkflow
 from dashboard.rank_tracking import render_rank_tracking
 from dashboard.rank_tracking_workflow import RankTrackingDashboardWorkflow
+from dashboard.site_crawl import render_site_crawl
 from src.seo.domain.seo_intelligence import SEOIntelligenceReport, SEOOpportunity
 from src.seo.dto.seo_audit_response import SEOAuditResponse
 
@@ -169,7 +170,7 @@ def render_seo(workflow: SEODashboardWorkflow | None = None) -> None:
     workflow = workflow or SEODashboardWorkflow()
     st.subheader("SEO Intelligence")
     st.caption("Technical audits and Google Search performance remain distinct evidence layers.")
-    audit_tab, performance_tab, intelligence_tab, rank_tab = st.tabs(["Technical audit", "Search performance", "SEO intelligence", "Rank tracking"])
+    audit_tab, performance_tab, intelligence_tab, rank_tab, crawl_tab = st.tabs(["Technical audit", "Search performance", "SEO intelligence", "Rank tracking", "Site crawl"])
     with audit_tab:
         _render_technical_audit(workflow)
     with performance_tab:
@@ -178,3 +179,5 @@ def render_seo(workflow: SEODashboardWorkflow | None = None) -> None:
         _render_intelligence(workflow)
     with rank_tab:
         render_rank_tracking()
+    with crawl_tab:
+        render_site_crawl()
