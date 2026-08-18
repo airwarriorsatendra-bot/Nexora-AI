@@ -1,7 +1,7 @@
 from __future__ import annotations
 import re
 from collections import defaultdict
-from urllib.parse import urlsplit
+from urllib.parse import urlsplit,urlunsplit
 from uuid import uuid4
 import httpx
 from src.ai_visibility.domain import *
@@ -39,10 +39,15 @@ class AIVisibilityService:
   competitor_matches=[item.model_copy(update={"mention_order":order_by_name[item.name]}) for item in competitor_matches]
   citations=[]
   target=self._host(request.target_domain)
+  seen=set()
   for item in response.citations:
-   host=self._host(item.url);competitor=next((name for name,aliases in request.competitors.items() if host in {self._host(x) for x in aliases if "." in x}),None);citations.append(CitationObservation(url=item.url,domain=host,title=item.title,index=item.index,is_target=host==target or host.endswith("."+target),competitor=competitor))
-  available=response.classification==ProviderClassification.GROUNDED_WITH_CITATIONS
-  return AIVisibilityObservation(run_id=run_id,prompt_id=request.prompt.prompt_id,prompt=request.prompt.text,category=request.prompt.category,provider=response.provider,model=response.model,classification=response.classification,state=ObservationState.SUCCESS,response_text=response.response_text,brand_mention=brand,competitor_mentions=tuple(sorted(competitor_matches,key=lambda x:x.first_offset)),citations=tuple(citations),citation_tracking_available=available,target_domain_cited=any(x.is_target for x in citations) if available else None,observed_at=response.observed_at)
+   normalized=self.normalize_url(item.url)
+   if not normalized or normalized in seen:continue
+   seen.add(normalized);host=self._host(normalized);competitor=next((name for name,aliases in request.competitors.items() if any(host==self._host(x) or host.endswith("."+self._host(x)) for x in aliases if "." in x)),None);citations.append(CitationObservation(url=item.url,normalized_url=normalized,domain=host,title=item.title,index=item.index,source_type=item.source_type,is_target=host==target or host.endswith("."+target),competitor=competitor,provider_metadata=item.provider_metadata))
+  available=response.classification in {ProviderClassification.GROUNDED_WITH_CITATIONS,ProviderClassification.GROUNDED_WITH_STRUCTURED_CITATIONS,ProviderClassification.GROUNDED_WITH_SOURCE_URLS}
+  targets=tuple(x.normalized_url for x in citations if x.is_target)
+  first=min((x.index for x in citations if x.is_target),default=None)
+  return AIVisibilityObservation(run_id=run_id,prompt_id=request.prompt.prompt_id,prompt=request.prompt.text,category=request.prompt.category,provider=response.provider,model=response.model,classification=response.classification,state=ObservationState.SUCCESS,response_text=response.response_text[:20000],brand_mention=brand,competitor_mentions=tuple(sorted(competitor_matches,key=lambda x:x.first_offset)),citations=tuple(citations),citation_tracking_available=available,target_domain_cited=any(x.is_target for x in citations) if available else None,target_urls_cited=targets,first_target_citation_order=first,observed_at=response.observed_at)
  def _failure(self,run_id,request,provider,state):return AIVisibilityObservation(run_id=run_id,prompt_id=request.prompt.prompt_id,prompt=request.prompt.text,category=request.prompt.category,provider=provider.capability.provider,model=provider.capability.model,classification=provider.capability.classification,state=state,citation_tracking_available=provider.capability.citations_supported,target_domain_cited=None,error_category=state.value)
  def report(self,run):
   success=[o for o in run.observations if o.state==ObservationState.SUCCESS];mention=sum(o.brand_mention is not None for o in success);capable=[o for o in success if o.citation_tracking_available];groups=defaultdict(list)
@@ -70,3 +75,12 @@ class AIVisibilityService:
   return tuple(result)
  @staticmethod
  def _host(value):return (urlsplit(value if "://" in value else "//"+value).hostname or "").casefold().removeprefix("www.")
+ @staticmethod
+ def normalize_url(value):
+  try:
+   parts=urlsplit(value.strip());scheme=parts.scheme.casefold();host=(parts.hostname or "").casefold()
+   if scheme not in {"http","https"} or not host:return ""
+   port=parts.port;netloc=host if port is None or (scheme=="http" and port==80) or (scheme=="https" and port==443) else f"{host}:{port}";path=parts.path or "/"
+   if path!="/":path=path.rstrip("/")
+   return urlunsplit((scheme,netloc,path,parts.query,""))
+  except ValueError:return ""

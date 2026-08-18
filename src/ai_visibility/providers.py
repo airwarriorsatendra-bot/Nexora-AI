@@ -7,7 +7,7 @@ class AIVisibilityProvider(Protocol):
  async def run_visibility_prompt(self,prompt:MonitoredPrompt)->ProviderResponse:...
  async def aclose(self)->None:...
 class OfflineVisibilityProvider:
- def __init__(self,responses=None,provider="OFFLINE_FIXTURE",model="deterministic-v1",citations_supported=True):self.responses=responses or {};self.calls=0;self._cap=ProviderCapability(provider=provider,model=model,classification=ProviderClassification.GROUNDED_WITH_CITATIONS if citations_supported else ProviderClassification.UNGROUNDED_MODEL_RESPONSE,web_grounding_supported=citations_supported,citations_supported=citations_supported,source_urls_supported=citations_supported,temperature_control_supported=True,seed_supported=True)
+ def __init__(self,responses=None,provider="OFFLINE_FIXTURE",model="deterministic-v1",citations_supported=True):self.responses=responses or {};self.calls=0;self._cap=ProviderCapability(provider=provider,model=model,classification=ProviderClassification.GROUNDED_WITH_STRUCTURED_CITATIONS if citations_supported else ProviderClassification.UNGROUNDED_MODEL_RESPONSE,web_grounding_supported=citations_supported,citations_supported=citations_supported,source_urls_supported=citations_supported,temperature_control_supported=True,seed_supported=True)
  @property
  def capability(self):return self._cap
  async def run_visibility_prompt(self,prompt):

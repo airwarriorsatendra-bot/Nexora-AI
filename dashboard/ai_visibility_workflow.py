@@ -22,6 +22,14 @@ class AIVisibilityDashboardWorkflow:
   app=self.factory()
   try:return await app.add_prompt(text)
   finally:await app.aclose()
+ async def promote_candidates(self,candidates):
+  app=self.factory()
+  try:return await app.promote_candidates(candidates)
+  finally:await app.aclose()
+ async def page_intelligence(self,target):
+  app=self.factory()
+  try:return await app.page_intelligence(target)
+  finally:await app.aclose()
  async def run(self,requests,repetitions,providers):
   app=self.factory()
   try:return await app.run(requests,repetitions,providers)
