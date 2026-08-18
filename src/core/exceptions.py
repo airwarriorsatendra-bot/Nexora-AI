@@ -62,6 +62,14 @@ class ExternalAPIError(ProviderError):
     """External API request failed."""
 
 
+class AuthorityProviderError(ExternalAPIError):
+    """Authority metrics provider request failed safely."""
+
+
+class AuthorityValidationError(AuthorityProviderError):
+    """Authority provider rejected deterministic request parameters."""
+
+
 # ============================================================================
 # Services
 # ============================================================================

@@ -9,6 +9,7 @@ from pathlib import Path
 from src.backlinks.domain.backlink import Backlink
 from src.backlinks.domain.normalization import canonical_url, normalized_domain
 from src.backlinks.domain.opportunity import BacklinkOpportunity
+from src.backlinks.domain.intelligence import AuthorityObservation, AuthorityScope, BacklinkProspect
 from src.core.enums import BacklinkVerificationStatus
 from src.core.exceptions import RepositoryError
 from src.research.repositories.sqlite_repository import SQLiteRepository
@@ -49,6 +50,44 @@ class BacklinkRepository(SQLiteRepository[Backlink]):
             """,
             "CREATE INDEX IF NOT EXISTS idx_backlink_opportunities_domain ON backlink_opportunities(domain)",
             "CREATE INDEX IF NOT EXISTS idx_backlink_opportunities_status ON backlink_opportunities(status)",
+            """
+            CREATE TABLE IF NOT EXISTS authority_observations (
+                observation_id TEXT PRIMARY KEY,
+                provider TEXT NOT NULL,
+                target TEXT NOT NULL,
+                scope TEXT NOT NULL,
+                observed_at TEXT NOT NULL,
+                observation_json TEXT NOT NULL,
+                UNIQUE(provider, target, scope, observed_at)
+            )
+            """,
+            "CREATE INDEX IF NOT EXISTS idx_authority_compatible ON authority_observations(provider,target,scope,observed_at DESC)",
+            """
+            CREATE TABLE IF NOT EXISTS backlink_prospects (
+                prospect_id TEXT PRIMARY KEY,
+                identity_key TEXT UNIQUE NOT NULL,
+                domain TEXT NOT NULL,
+                score INTEGER NOT NULL,
+                priority TEXT NOT NULL,
+                observed_at TEXT NOT NULL,
+                prospect_json TEXT NOT NULL,
+                authority_observation_id TEXT,
+                FOREIGN KEY(authority_observation_id) REFERENCES authority_observations(observation_id)
+            )
+            """,
+            "CREATE INDEX IF NOT EXISTS idx_backlink_prospects_priority ON backlink_prospects(priority,score DESC)",
+            """
+            CREATE TABLE IF NOT EXISTS backlink_prospect_history (
+                prospect_id TEXT NOT NULL,
+                identity_key TEXT NOT NULL,
+                observed_at TEXT NOT NULL,
+                score INTEGER NOT NULL,
+                priority TEXT NOT NULL,
+                prospect_json TEXT NOT NULL,
+                PRIMARY KEY(identity_key, observed_at)
+            )
+            """,
+            "CREATE INDEX IF NOT EXISTS idx_backlink_prospect_history_identity ON backlink_prospect_history(identity_key,observed_at DESC)",
         )
 
     def __init__(self, database_path: str | Path) -> None:
@@ -167,6 +206,52 @@ class BacklinkRepository(SQLiteRepository[Backlink]):
     async def delete(self, source_url: str, target_url: str) -> bool:
         await self.initialize()
         return (await self._execute("DELETE FROM backlinks WHERE source_url = ? AND target_url = ?", (canonical_url(source_url), canonical_url(target_url)), operation_name="delete backlink")) > 0
+
+    async def save_authority(self, observation: AuthorityObservation) -> AuthorityObservation:
+        await self.initialize()
+        payload = observation.model_dump_json()
+        await self._execute(
+            "INSERT INTO authority_observations(observation_id,provider,target,scope,observed_at,observation_json) VALUES(?,?,?,?,?,?) ON CONFLICT(provider,target,scope,observed_at) DO NOTHING",
+            (str(observation.observation_id), observation.provider, observation.target, observation.scope.value, observation.observed_at.isoformat(), payload), operation_name="save authority observation",
+        )
+        return observation
+
+    async def latest_authority(self, target: str, scope: AuthorityScope, *, provider: str = "MOZ") -> AuthorityObservation | None:
+        await self.initialize()
+        normalized = normalized_domain(target) if scope is AuthorityScope.DOMAIN else canonical_url(target)
+        row = await self._fetchone("SELECT observation_json FROM authority_observations WHERE provider=? AND target=? AND scope=? ORDER BY observed_at DESC,rowid DESC LIMIT 1", (provider, normalized, scope.value), operation_name="load latest authority")
+        return None if row is None else AuthorityObservation.model_validate_json(row["observation_json"])
+
+    async def authority_history(self, *, target: str | None = None, limit: int = 500) -> list[AuthorityObservation]:
+        await self.initialize(); parameters: list[object] = []; where = ""
+        if target:
+            where = " WHERE target=?"; parameters.append(target)
+        parameters.append(max(1, min(limit, 10_000)))
+        rows = await self._fetchall(f"SELECT observation_json FROM authority_observations{where} ORDER BY observed_at DESC,rowid DESC LIMIT ?", parameters, operation_name="load authority history")
+        return [AuthorityObservation.model_validate_json(row["observation_json"]) for row in rows]
+
+    async def save_prospect(self, prospect: BacklinkProspect) -> BacklinkProspect:
+        await self.initialize()
+        identity = f"{prospect.domain}|{prospect.opportunity_type.value}|{str(prospect.target_page or '')}"
+        await self._execute("""INSERT INTO backlink_prospects(prospect_id,identity_key,domain,score,priority,observed_at,prospect_json,authority_observation_id) VALUES(?,?,?,?,?,?,?,?)
+            ON CONFLICT(identity_key) DO UPDATE SET score=excluded.score,priority=excluded.priority,observed_at=excluded.observed_at,prospect_json=excluded.prospect_json,authority_observation_id=excluded.authority_observation_id""",
+            (str(prospect.prospect_id), identity, prospect.domain, prospect.score, prospect.priority.value, prospect.observed_at.isoformat(), prospect.model_dump_json(), str(prospect.authority_observation_id) if prospect.authority_observation_id else None), operation_name="save backlink prospect")
+        await self._execute("""INSERT INTO backlink_prospect_history(prospect_id,identity_key,observed_at,score,priority,prospect_json) VALUES(?,?,?,?,?,?)
+            ON CONFLICT(identity_key,observed_at) DO NOTHING""",
+            (str(prospect.prospect_id), identity, prospect.observed_at.isoformat(), prospect.score, prospect.priority.value, prospect.model_dump_json()), operation_name="save backlink prospect history")
+        return prospect
+
+    async def list_prospects(self, *, limit: int = 500) -> list[BacklinkProspect]:
+        await self.initialize(); rows = await self._fetchall("SELECT prospect_json FROM backlink_prospects ORDER BY score DESC,observed_at DESC LIMIT ?", (max(1,min(limit,10_000)),), operation_name="list backlink prospects")
+        return [BacklinkProspect.model_validate_json(row["prospect_json"]) for row in rows]
+
+    async def prospect_history(self, *, domain: str | None = None, limit: int = 500) -> list[BacklinkProspect]:
+        await self.initialize(); parameters: list[object] = []; where = ""
+        if domain:
+            where = " WHERE identity_key LIKE ?"; parameters.append(f"{normalized_domain(domain)}|%")
+        parameters.append(max(1, min(limit, 10_000)))
+        rows = await self._fetchall(f"SELECT prospect_json FROM backlink_prospect_history{where} ORDER BY observed_at DESC,rowid DESC LIMIT ?", parameters, operation_name="load backlink prospect history")
+        return [BacklinkProspect.model_validate_json(row["prospect_json"]) for row in rows]
 
     @staticmethod
     def _decode_backlink(payload: str) -> Backlink:
