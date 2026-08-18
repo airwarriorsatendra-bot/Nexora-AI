@@ -97,6 +97,48 @@ class GroundedCitationTests(unittest.IsolatedAsyncioTestCase):
             settings = AIVisibilitySettings.from_environment({"DATABASE_URL": str(Path(directory) / "v.db"), "GROUNDED_AI_PROVIDER": "perplexity", "PERPLEXITY_API_KEY": "key", "GROUNDED_AI_MODEL": "sonar"})
             app = AIVisibilityComposition(settings).build(); self.assertEqual(app.providers[0].capability.provider, "PERPLEXITY_SONAR_API"); await app.aclose()
 
+    async def test_grounded_gemini_uses_only_dedicated_credential(self):
+        with tempfile.TemporaryDirectory() as directory:
+            environment = {
+                "DATABASE_URL": str(Path(directory) / "v.db"),
+                "AI_PROVIDER": "gemini",
+                "GEMINI_MODEL": "gemini-2.0-flash",
+                "GROUNDED_AI_PROVIDER": "gemini",
+                "GROUNDED_AI_MODEL": "gemini-2.5-flash",
+                "GEMINI_API_KEY": "dedicated-gemini-secret",
+                "GOOGLE_API_KEY": "search-secret",
+            }
+            settings = AIVisibilitySettings.from_environment(environment)
+            self.assertEqual(settings.api_key, "search-secret")
+            self.assertEqual(settings.grounded_api_key, "dedicated-gemini-secret")
+            app = AIVisibilityComposition(settings).build()
+            try:
+                self.assertEqual(len(app.providers), 2)
+                ordinary, provider = app.providers
+                self.assertEqual(ordinary.capability.provider, "GEMINI_API")
+                self.assertEqual(ordinary.capability.model, "gemini-2.0-flash")
+                self.assertEqual(provider.capability.provider, "GEMINI_GROUNDED_API")
+                self.assertEqual(provider.capability.model, "gemini-2.5-flash")
+                self.assertEqual(provider._api_key, "dedicated-gemini-secret")
+                self.assertNotEqual(provider._api_key, environment["GOOGLE_API_KEY"])
+            finally:
+                await app.aclose()
+
+    async def test_grounded_gemini_does_not_fallback_to_google_api_key(self):
+        environment = {
+            "GROUNDED_AI_PROVIDER": "gemini",
+            "GROUNDED_AI_MODEL": "gemini-2.5-flash",
+            "GOOGLE_API_KEY": "search-secret",
+        }
+        settings = AIVisibilitySettings.from_environment(environment)
+        self.assertEqual(settings.grounded_api_key, "")
+        app = AIVisibilityComposition(settings).build()
+        try:
+            self.assertFalse(app.providers)
+            self.assertNotIn(environment["GOOGLE_API_KEY"], repr(app.providers))
+        finally:
+            await app.aclose()
+
     async def test_explicit_prompt_promotion_is_bounded_deduplicated_and_offline(self):
         with tempfile.TemporaryDirectory() as directory:
             app=AIVisibilityComposition(AIVisibilitySettings(Path(directory)/"v.db"),[]).build();items=[("GSC_HIGH_IMPRESSION","example.test",f"query {i}",None) for i in range(30)];promoted=await app.promote_candidates(items,25);self.assertEqual(len(promoted),25);again=await app.promote_candidates(items[:1]);self.assertEqual(promoted[0].prompt_id,again[0].prompt_id);self.assertEqual(promoted[0].source,"GSC_HIGH_IMPRESSION");await app.aclose()

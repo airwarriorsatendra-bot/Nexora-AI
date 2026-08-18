@@ -133,6 +133,10 @@ ENV_CLAUDE_API_KEY: str = "ANTHROPIC_API_KEY"
 
 ENV_GEMINI_API_KEY: str = "GOOGLE_API_KEY"
 
+# Dedicated Gemini generation credential for grounded AI visibility.  This is
+# intentionally distinct from the existing GOOGLE_API_KEY integration.
+ENV_GROUNDED_GEMINI_API_KEY: str = "GEMINI_API_KEY"
+
 ENV_GROQ_API_KEY: str = "GROQ_API_KEY"
 
 ENV_NVIDIA_API_KEY: str = "NVIDIA_API_KEY"
