@@ -6,12 +6,21 @@ import streamlit as st
 
 from dashboard.analytics_workflow import AnalyticsDashboardWorkflow, insights_to_dataframe, kpis_to_dataframe
 from dashboard.research_workflow import run_async
+from dashboard.ga4 import render_ga4
 
 
 def render_analytics_intelligence(workflow: AnalyticsDashboardWorkflow | None = None) -> None:
     st.subheader("Analytics & Marketing Intelligence")
     st.caption("KPIs retain source, reporting period, and currency. Cross-platform conversions are source-attributed and not deduplicated.")
     workflow = workflow or AnalyticsDashboardWorkflow()
+    reports_tab, ga4_tab = st.tabs(["Source snapshots", "Google Analytics 4"])
+    with ga4_tab:
+        render_ga4()
+    with reports_tab:
+        _render_snapshots(workflow)
+
+
+def _render_snapshots(workflow: AnalyticsDashboardWorkflow) -> None:
     st.session_state.setdefault("analytics_report", None)
     controls, action = st.columns((4, 1))
     if action.button("Refresh snapshots", type="primary"):

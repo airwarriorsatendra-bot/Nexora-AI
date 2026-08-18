@@ -38,6 +38,7 @@ The application creates its SQLite runtime database at `storage/backlinks.db` th
 - Outreach: dry-run/fake delivery only; no live email delivery provider.
 - Local SEO: deterministic website/citation-input analysis; no GBP, reviews, or rank-tracking provider.
 - Google Search Console: a read-only OAuth refresh-token integration for authorized property discovery and persisted search-performance snapshots. It exposes Google-supplied clicks, impressions, CTR, and average position separately from paid-media metrics; it is not real-time rank tracking.
+- Google Analytics 4: read-only Data API snapshots for users, sessions, engagement, and events. GA4 and GSC use different measurement systems; Nexora never equates GSC clicks to GA4 sessions or merges either with paid-media attribution.
 - Analytics preserves source attribution and currency. It does not perform FX conversion or cross-platform conversion deduplication.
 
 ## Google Search Console setup
@@ -51,6 +52,10 @@ GSC_REFRESH_TOKEN=
 ```
 
 No client secret, refresh token, or access token is stored in SQLite or shown in the dashboard. In the SEO workspace, use **Discover properties**, select an authorized URL-prefix or domain property, choose an explicit period, then use **Refresh data**. Refresh is user-triggered only; it persists idempotent historical snapshots for aggregate, query, page, and date dimensions. Search Console can omit dates without data and can return bounded top rows, so Nexora never fabricates missing rows or dates.
+
+## Google Analytics 4 setup
+
+Enable the Google Analytics Data API and, for property discovery, the Google Analytics Admin API. Reauthorize the existing Google OAuth client with `https://www.googleapis.com/auth/analytics.readonly`, then set `GA4_PROPERTY_ID`. GA4 refreshes are explicit from the Analytics workspace and use read-only `runReport`/account-summary operations only—no Measurement Protocol, Admin mutation, or credential persistence is implemented.
 
 ## Controlled beta deployment
 

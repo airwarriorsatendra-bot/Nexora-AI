@@ -116,3 +116,7 @@ class MetaAdsError(ServiceError):
 
 class SearchConsoleError(ServiceError):
     """Google Search Console retrieval or analysis failed."""
+
+
+class GA4Error(ServiceError):
+    """Google Analytics 4 retrieval or analysis failed."""

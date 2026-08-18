@@ -30,13 +30,14 @@ class AnalyticsDashboardWorkflow:
             opportunities = await application.backlink_repository.list_opportunities(limit=500)
             outreach = await application.outreach_repository.summary_counts()
             search_console = await application.search_console_repository.latest(dimensions=())
+            ga4 = await application.ga4_repository.latest()
             latest_google = google[0] if google else None
             latest_meta = meta[0] if meta else None
-            if latest_google is None and latest_meta is None and search_console is None and not seo and not local_seo and not backlinks and not opportunities and not any(outreach.values()):
+            if latest_google is None and latest_meta is None and search_console is None and ga4 is None and not seo and not local_seo and not backlinks and not opportunities and not any(outreach.values()):
                 return None
             reference = latest_google.period if latest_google is not None else latest_meta.period if latest_meta is not None else None
             if reference is None:
-                observed_at = search_console.period.start_date if search_console else seo[0].audited_at.date() if seo else local_seo[0].audited_at.date() if local_seo else date.today()
+                observed_at = search_console.period.start_date if search_console else ga4.period.start_date if ga4 else seo[0].audited_at.date() if seo else local_seo[0].audited_at.date() if local_seo else date.today()
                 period = Period(date_from=observed_at, date_to=observed_at)
             else:
                 period = Period(date_from=reference.date_from, date_to=reference.date_to)
@@ -59,6 +60,7 @@ class AnalyticsDashboardWorkflow:
                 latest_google,
                 latest_meta,
                 search_console,
+                ga4,
                 extra_kpis=extra_kpis,
             )
         finally:

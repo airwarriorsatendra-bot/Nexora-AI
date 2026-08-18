@@ -9,6 +9,7 @@ from src.analytics.domain import AnalyticsInsight, AnalyticsReport, ChannelKPI, 
 from src.google_ads.domain import GoogleAdsAudit
 from src.meta_ads.domain import MetaAudit
 from src.search_console.domain import SearchPerformanceSnapshot
+from src.ga4.domain import GA4Snapshot
 
 
 class AnalyticsService:
@@ -20,6 +21,7 @@ class AnalyticsService:
         google: GoogleAdsAudit | None = None,
         meta: MetaAudit | None = None,
         search_console: SearchPerformanceSnapshot | None = None,
+        ga4: GA4Snapshot | None = None,
         *,
         extra_kpis: Iterable[ChannelKPI] = (),
     ) -> AnalyticsReport:
@@ -70,10 +72,15 @@ class AnalyticsService:
                 ChannelKPI(name="organic_ctr", value=totals.ctr, unit="ratio", source_module="GOOGLE_SEARCH_CONSOLE", source_system=search_console.provider, period=source_period, source_record_id=record_id),
                 ChannelKPI(name="organic_average_position", value=totals.average_position, unit="position", source_module="GOOGLE_SEARCH_CONSOLE", source_system=search_console.provider, period=source_period, source_record_id=record_id),
             ))
+        if ga4 is not None:
+            source_period = Period(date_from=ga4.period.start_date, date_to=ga4.period.end_date)
+            for name, value in ga4.totals.items():
+                unit = "ratio" if name == "engagementRate" else "count"
+                kpis.append(ChannelKPI(name=f"ga4_{name}", value=value, unit=unit, source_module="GOOGLE_ANALYTICS_4", source_system=ga4.provider, period=source_period, source_record_id=str(ga4.snapshot_id)))
         return AnalyticsReport(period=period, kpis=kpis, insights=insights)
 
-    async def build_and_save(self, period: Period, repository: object, google: GoogleAdsAudit | None = None, meta: MetaAudit | None = None, search_console: SearchPerformanceSnapshot | None = None, *, extra_kpis: Iterable[ChannelKPI] = ()) -> AnalyticsReport:
-        report = self.build(period, google, meta, search_console, extra_kpis=extra_kpis)
+    async def build_and_save(self, period: Period, repository: object, google: GoogleAdsAudit | None = None, meta: MetaAudit | None = None, search_console: SearchPerformanceSnapshot | None = None, ga4: GA4Snapshot | None = None, *, extra_kpis: Iterable[ChannelKPI] = ()) -> AnalyticsReport:
+        report = self.build(period, google, meta, search_console, ga4, extra_kpis=extra_kpis)
         await repository.save(report)
         return report
 

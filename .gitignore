@@ -45,3 +45,7 @@ storage/reports/
 database/*.db
 temp/
 tmp/
+
+# Local Google OAuth credentials
+client_secret.json
+client_secret_*.json

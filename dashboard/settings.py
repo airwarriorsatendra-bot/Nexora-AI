@@ -23,6 +23,10 @@ def render_settings(st) -> None:
     with st.container(horizontal=True):
         for name, variable in (("Tavily", "TAVILY_API_KEY"), ("Serper", "SERPER_API_KEY"), ("Brave", "BRAVE_API_KEY"), ("Google CSE", "GOOGLE_CSE_API_KEY"), ("Perplexity", "PERPLEXITY_API_KEY")):
             _provider_card(name, variable)
+    st.subheader("Google data sources")
+    with st.container(horizontal=True):
+        _provider_card("Google Search Console", "GSC_REFRESH_TOKEN")
+        _provider_card("Google Analytics 4", "GA4_PROPERTY_ID")
     st.subheader("Application and database")
     with st.container(horizontal=True):
         st.metric("Application", "Nexora AI", border=True)
