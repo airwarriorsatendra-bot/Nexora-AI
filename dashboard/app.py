@@ -15,6 +15,7 @@ import pandas as pd
 from dashboard.analytics import render_analytics
 from dashboard.backlinks import render_backlinks
 from dashboard.config import APP_DESCRIPTION, APP_NAME, LAYOUT, PAGE_ICON, PAGE_TITLE, SIDEBAR_STATE
+from dashboard.config import POWERED_BY, PRODUCT_TAGLINE
 from dashboard.database import analytics
 from dashboard.explorer import render_explorer
 from dashboard.metrics import render_dashboard_metrics
@@ -110,6 +111,6 @@ elif sidebar["page"] == "Settings":
 
 st.divider()
 with st.container(horizontal=True, horizontal_alignment="distribute"):
-    st.caption("Nexora AI")
-    st.caption("AI-powered digital marketing platform")
+    st.caption(f"{APP_NAME} — Powered by {POWERED_BY}")
+    st.caption(PRODUCT_TAGLINE)
     st.caption("Version 1.0.0")

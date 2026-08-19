@@ -51,10 +51,14 @@ for directory in [
 
 APP_NAME = "Nexora AI"
 
+PRODUCT_TAGLINE = "AI-Powered Digital Marketing Intelligence Platform"
+
+POWERED_BY = "Nexora Digital Hub"
+
 APP_VERSION = "1.0.0"
 
 APP_DESCRIPTION = (
-    "AI Powered Digital Marketing Operating System"
+    PRODUCT_TAGLINE
 )
 
 PAGE_TITLE = "Nexora AI"

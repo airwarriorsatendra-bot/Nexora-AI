@@ -30,6 +30,7 @@ def render_settings(st) -> None:
     st.subheader("Application and database")
     with st.container(horizontal=True):
         st.metric("Application", "Nexora AI", border=True)
+        st.metric("Operator", "Nexora Digital Hub", border=True)
         st.metric("Database", "SQLite", border=True)
         st.metric("Delivery mode", "Dry run", border=True)
     if st.button("Clear local session", type="secondary"):

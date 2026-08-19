@@ -17,7 +17,8 @@ NAVIGATION = (
 def render_sidebar() -> dict[str, object]:
     st.session_state.setdefault("nexora_navigation_page", "Dashboard")
     with st.sidebar:
-        st.markdown("### NEXORA AI")
+        st.markdown("### Nexora AI")
+        st.caption("Powered by Nexora Digital Hub")
         st.caption("AI Marketing Intelligence · BETA")
         st.divider()
         for group, entries in NAVIGATION:

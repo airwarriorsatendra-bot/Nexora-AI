@@ -1,6 +1,8 @@
 # Nexora AI
 
-Nexora AI is a Python 3.12 digital-marketing intelligence platform with source-layer modules for Research, SEO, Backlinks, Outreach, Local SEO, imported Google/Meta Ads analysis, and Analytics.
+Nexora AI is an AI-powered digital marketing intelligence platform built on Python 3.12, with source-layer modules for Research, SEO, Backlinks, Outreach, Local SEO, imported Google/Meta Ads analysis, and Analytics.
+
+Powered by Nexora Digital Hub.
 
 ## Local setup
 
