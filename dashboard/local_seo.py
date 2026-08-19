@@ -5,6 +5,7 @@ import streamlit as st
 from dashboard.local_seo_workflow import LocalSEODashboardWorkflow,frame,issues_to_dataframe,local_report
 from src.local_seo.domain import LocalBusiness
 from src.shared.value_objects.location import Location
+from src.local_seo.composition import LocalSEOSettings
 
 def run(coro):
  try:asyncio.get_running_loop()
@@ -18,6 +19,13 @@ def render_local_seo(workflow=None):
  st.session_state.setdefault("local_seo_response",None);workflow=workflow or LocalSEODashboardWorkflow();st.subheader("Local SEO Intelligence");st.caption("Evidence-backed local business, NAP, reviews, rankings, citations, competitors, and actions. Provider refreshes are always explicit.")
  try:snapshot=run(workflow.snapshot())
  except Exception:snapshot=None;st.error("Persisted Local SEO intelligence could not be loaded.")
+ settings=LocalSEOSettings.from_environment();configured=settings.gbp_configured
+ with st.container(border=True):
+  left,right=st.columns([4,1]);left.markdown("**Google Business Profile · read only**");left.caption("Profile data refreshes only when requested. Reviews, performance, media, and write actions are not implemented.")
+  if right.button("Refresh GBP profile",type="primary",disabled=not configured,key="refresh-gbp-profile"):
+   try:run(workflow.refresh_business_profile());st.success("Google Business Profile refreshed.");snapshot=run(workflow.snapshot())
+   except Exception as exc:st.error(str(exc))
+  if not configured:st.info("GBP_CLIENT_ID, GBP_CLIENT_SECRET, and GBP_REFRESH_TOKEN are required for live profile refresh.")
  with st.expander("Run website evidence audit",expanded=snapshot is None):
   with st.form("local-seo",border=False):
    left,right=st.columns(2);name=left.text_input("Business name",key="local-name");website=right.text_input("Website URL",key="local-url");phone=left.text_input("Phone",key="local-phone");address=right.text_input("Address",key="local-address");city=left.text_input("City",key="local-city");state=right.text_input("State",key="local-state");category=left.text_input("Primary category",key="local-category");submit=st.form_submit_button("Run local audit",type="primary",icon=":material/search:")

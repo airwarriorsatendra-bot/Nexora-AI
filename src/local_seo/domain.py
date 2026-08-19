@@ -20,8 +20,12 @@ class LocalPageState(str,Enum):HEALTHY="HEALTHY";MISSING_LOCAL_SIGNAL="MISSING_L
 
 class LocalBusiness(NexoraModel):
  model_config=ConfigDict(frozen=True,extra="forbid");business_id:UUID=Field(default_factory=uuid4);name:str=Field(min_length=1,max_length=300);website:HttpUrl;phone:str=Field(default="",max_length=50);location:Location;primary_category:str=Field(default="",max_length=150)
+class BusinessProfileAccount(NexoraModel):
+ model_config=ConfigDict(frozen=True,extra="forbid");account_id:str=Field(min_length=1,max_length=255);account_name:str="";account_type:str="";role:str="";provider:str="GOOGLE_BUSINESS_PROFILE";observed_at:datetime=Field(default_factory=now)
 class BusinessLocation(NexoraModel):
  model_config=ConfigDict(frozen=True,extra="forbid");location_id:str=Field(min_length=1,max_length=255);business_id:UUID;account_id:str|None=None;business_name:str="";primary_category:str="";additional_categories:tuple[str,...]=();address:str="";locality:str="";administrative_area:str="";postal_code:str="";country:str="";phone:str="";website:str|None=None;service_area:tuple[str,...]=();latitude:float|None=Field(default=None,ge=-90,le=90);longitude:float|None=Field(default=None,ge=-180,le=180);regular_hours:dict[str,str]=Field(default_factory=dict);special_hours:dict[str,str]=Field(default_factory=dict);profile_status:str|None=None;source:str="MANUAL";provider:str="MANUAL";observed_at:datetime=Field(default_factory=now);freshness:FreshnessState=FreshnessState.UNKNOWN
+class BusinessProfileRefresh(NexoraModel):
+ model_config=ConfigDict(frozen=True,extra="forbid");account:BusinessProfileAccount;location:BusinessLocation
 class NAPEvidence(NexoraModel):
  model_config=ConfigDict(frozen=True,extra="forbid");evidence_id:UUID=Field(default_factory=uuid4);location_id:str;source:str;name:str|None=None;address:str|None=None;phone:str|None=None;normalized_name:str|None=None;normalized_address:str|None=None;normalized_phone:str|None=None;observed_at:datetime=Field(default_factory=now)
 class NAPAssessment(NexoraModel):

@@ -19,6 +19,12 @@ class LocalSEODashboardWorkflow:
   finally:
    close=getattr(app,"aclose",None)
    if close:await close()
+ async def refresh_business_profile(self):
+  app=self._factory()
+  try:return await app.refresh_business_profile()
+  finally:
+   close=getattr(app,"aclose",None)
+   if close:await close()
 def frame(values,exclude=()):
  rows=[]
  for value in values:

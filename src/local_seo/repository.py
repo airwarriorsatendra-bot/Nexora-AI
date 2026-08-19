@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 from collections.abc import Sequence
 from pathlib import Path
-from src.local_seo.domain import BusinessLocation,CitationTarget,LocalCitation,LocalCompetitor,LocalHistoryEvent,LocalLandingPage,LocalOpportunity,LocalQueryEvidence,LocalRankObservation,LocalReview,LocalSEOAudit,NAPEvidence
+from src.local_seo.domain import BusinessLocation,BusinessProfileAccount,CitationTarget,LocalCitation,LocalCompetitor,LocalHistoryEvent,LocalLandingPage,LocalOpportunity,LocalQueryEvidence,LocalRankObservation,LocalReview,LocalSEOAudit,NAPEvidence
 from src.research.repositories.sqlite_repository import SQLiteRepository
 
 class LocalSEORepository(SQLiteRepository[LocalSEOAudit]):
@@ -13,6 +13,7 @@ class LocalSEORepository(SQLiteRepository[LocalSEOAudit]):
   "CREATE INDEX IF NOT EXISTS idx_local_seo_audits_time ON local_seo_audits(audited_at DESC)",
   "CREATE INDEX IF NOT EXISTS idx_local_seo_audits_score ON local_seo_audits(overall_score DESC)",
   "CREATE TABLE IF NOT EXISTS local_locations(location_id TEXT PRIMARY KEY,business_id TEXT NOT NULL,observed_at TEXT NOT NULL,location_json TEXT NOT NULL)",
+  "CREATE TABLE IF NOT EXISTS local_gbp_accounts(account_id TEXT PRIMARY KEY,observed_at TEXT NOT NULL,account_json TEXT NOT NULL)",
   "CREATE TABLE IF NOT EXISTS local_nap_evidence(evidence_id TEXT PRIMARY KEY,location_id TEXT NOT NULL,observed_at TEXT NOT NULL,evidence_json TEXT NOT NULL,FOREIGN KEY(location_id) REFERENCES local_locations(location_id))",
   "CREATE TABLE IF NOT EXISTS local_reviews(review_id TEXT PRIMARY KEY,location_id TEXT NOT NULL,observed_at TEXT NOT NULL,review_json TEXT NOT NULL,FOREIGN KEY(location_id) REFERENCES local_locations(location_id))",
   "CREATE TABLE IF NOT EXISTS local_rank_observations(observation_id TEXT PRIMARY KEY,identity_key TEXT NOT NULL UNIQUE,location_id TEXT NOT NULL,observed_at TEXT NOT NULL,rank_json TEXT NOT NULL,FOREIGN KEY(location_id) REFERENCES local_locations(location_id))",
@@ -36,6 +37,8 @@ class LocalSEORepository(SQLiteRepository[LocalSEOAudit]):
   await self.initialize();rows=await self._fetchall(f"SELECT {field} FROM {table} ORDER BY {order} DESC LIMIT ?",(max(1,min(limit,10000)),),operation_name=f"list {table}");return [model.model_validate_json(x[field]) for x in rows]
  async def save_location(self,x:BusinessLocation):
   await self.initialize();await self._execute("INSERT INTO local_locations(location_id,business_id,observed_at,location_json) VALUES(?,?,?,?) ON CONFLICT(location_id) DO UPDATE SET business_id=excluded.business_id,observed_at=excluded.observed_at,location_json=excluded.location_json",(x.location_id,str(x.business_id),x.observed_at.isoformat(),x.model_dump_json()),operation_name="save local location");return x
+ async def save_gbp_account(self,x:BusinessProfileAccount):
+  await self.initialize();await self._execute("INSERT INTO local_gbp_accounts(account_id,observed_at,account_json) VALUES(?,?,?) ON CONFLICT(account_id) DO UPDATE SET observed_at=excluded.observed_at,account_json=excluded.account_json",(x.account_id,x.observed_at.isoformat(),x.model_dump_json()),operation_name="save GBP account");return x
  async def save_review(self,x:LocalReview):
   await self.initialize();await self._execute("INSERT INTO local_reviews(review_id,location_id,observed_at,review_json) VALUES(?,?,?,?) ON CONFLICT(review_id) DO UPDATE SET observed_at=excluded.observed_at,review_json=excluded.review_json",(x.review_id,x.location_id,x.observed_at.isoformat(),x.model_dump_json()),operation_name="save local review");return x
  async def save_nap_evidence(self,x:NAPEvidence):
@@ -55,6 +58,7 @@ class LocalSEORepository(SQLiteRepository[LocalSEOAudit]):
  async def save_landing_page(self,x:LocalLandingPage):
   await self.initialize();await self._execute("INSERT INTO local_landing_pages(url,page_json) VALUES(?,?) ON CONFLICT(url) DO UPDATE SET page_json=excluded.page_json",(x.url,x.model_dump_json()),operation_name="save local landing page");return x
  async def list_locations(self,limit=1000):return await self._list("local_locations","location_json",BusinessLocation,limit,"observed_at")
+ async def list_gbp_accounts(self,limit=100):return await self._list("local_gbp_accounts","account_json",BusinessProfileAccount,limit,"observed_at")
  async def list_reviews(self,limit=10000):return await self._list("local_reviews","review_json",LocalReview,limit,"observed_at")
  async def list_nap_evidence(self,limit=10000):return await self._list("local_nap_evidence","evidence_json",NAPEvidence,limit,"observed_at")
  async def list_ranks(self,limit=10000):return await self._list("local_rank_observations","rank_json",LocalRankObservation,limit,"observed_at")

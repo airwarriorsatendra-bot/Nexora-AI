@@ -5,6 +5,7 @@ from collections.abc import Awaitable,Callable,Iterable
 from datetime import UTC,datetime
 from statistics import median
 from urllib.parse import urlparse
+from uuid import NAMESPACE_URL,uuid5
 from bs4 import BeautifulSoup
 from src.core.enums import Priority
 from src.core.exceptions import CrawlError,RepositoryError
@@ -18,6 +19,11 @@ def normalize_phone(value:str)->str:
  digits=re.sub(r"\D","",value);return ("+"+digits) if digits else ""
 class LocalSEOAuditService:
  def __init__(self,fetch_html:Callable[[str],Awaitable[str]],repository:LocalSEORepository)->None:self._fetch,self._repo=fetch_html,repository
+ async def persist_business_profile(self,result:BusinessProfileRefresh)->BusinessProfileRefresh:
+  await self._repo.save_gbp_account(result.account);await self._repo.save_location(result.location)
+  event_id=uuid5(NAMESPACE_URL,f"gbp-refresh:{result.location.location_id}:{result.location.observed_at.isoformat()}")
+  await self._repo.save_history(LocalHistoryEvent(event_id=event_id,location_id=result.location.location_id,evidence_type="BUSINESS_PROFILE_REFRESH",provider="GOOGLE_BUSINESS_PROFILE",detail="Selected Google Business Profile location refreshed through the read-only API.",observed_at=result.location.observed_at))
+  return result
  async def audit(self,request:LocalSEOAuditRequest)->LocalSEOAuditResponse:
   try:
    html=await self._fetch(str(request.business.website));audit=self.analyze(request.business,html,request.citations);await self._repo.save(audit);return LocalSEOAuditResponse(success=True,audit=audit,message="Local SEO audit completed.")
