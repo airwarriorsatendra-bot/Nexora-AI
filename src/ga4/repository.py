@@ -15,6 +15,8 @@ class GA4Repository(SQLiteRepository[GA4Snapshot]):
   await self._executemany('INSERT INTO ga4_rows(snapshot_key,row_number,row_json) VALUES(?,?,?) ON CONFLICT(snapshot_key,row_number) DO NOTHING',[(key,i,r.model_dump_json()) for i,r in enumerate(s.records)],operation_name='save GA4 rows');return s
  async def latest(self,dimensions:tuple[GA4Dimension,...]=())->GA4Snapshot|None:
   await self.initialize();row=await self._fetchone('SELECT snapshot_json FROM ga4_snapshots WHERE dimensions_json=? ORDER BY captured_at DESC,rowid DESC LIMIT 1',(json.dumps([d.value for d in dimensions]),),operation_name='latest GA4');return None if row is None else GA4Snapshot.model_validate_json(row['snapshot_json'])
+ async def history(self,dimensions:tuple[GA4Dimension,...]=(),limit:int=100)->list[GA4Snapshot]:
+  await self.initialize();rows=await self._fetchall('SELECT snapshot_json FROM ga4_snapshots WHERE dimensions_json=? ORDER BY captured_at ASC,rowid ASC LIMIT ?',(json.dumps([d.value for d in dimensions]),max(1,min(limit,500))),operation_name='GA4 history');return [GA4Snapshot.model_validate_json(row['snapshot_json']) for row in rows]
  @staticmethod
  def key(s):
   d=s.model_dump(mode='json');d.pop('snapshot_id');d.pop('captured_at');return hashlib.sha256(json.dumps(d,sort_keys=True,separators=(',',':')).encode()).hexdigest()

@@ -32,9 +32,11 @@ class SiteCrawlRepository(SQLiteRepository[SiteCrawl]):
         await self.initialize(); row = await self._fetchone("SELECT crawl_json FROM site_crawls WHERE crawl_id=?", (str(crawl_id),), operation_name="get site crawl")
         return None if row is None else SiteCrawl.model_validate_json(row["crawl_json"])
 
-    async def history(self, start_url: str | None = None, limit: int = 50) -> list[SiteCrawl]:
+    async def history(self, start_url: str | None = None, limit: int = 50, sort_by: str = "completed_at", descending: bool = False) -> list[SiteCrawl]:
+        if sort_by not in {"completed_at", "started_at", "start_url"}: sort_by = "completed_at"
+        direction = "DESC" if descending else "ASC"
         await self.initialize(); where = " WHERE start_url=?" if start_url else ""; params = (start_url, max(1, min(limit, 200))) if start_url else (max(1, min(limit, 200)),)
-        rows = await self._fetchall(f"SELECT crawl_json FROM site_crawls{where} ORDER BY completed_at ASC,rowid ASC LIMIT ?", params, operation_name="site crawl history")
+        rows = await self._fetchall(f"SELECT crawl_json FROM site_crawls{where} ORDER BY {sort_by} {direction},rowid ASC LIMIT ?", params, operation_name="site crawl history")
         return [SiteCrawl.model_validate_json(row["crawl_json"]) for row in rows]
 
     async def latest(self, start_url: str | None = None) -> SiteCrawl | None:

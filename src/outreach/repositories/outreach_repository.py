@@ -106,3 +106,7 @@ class OutreachAutomationRepository(SQLiteRepository[Campaign]):
     async def list_history(self,limit:int=1000):return await self._list_json("outreach_history","event_json",OutreachHistoryEvent,limit)
     async def list_suppressions(self,limit:int=1000):
         await self.initialize();rows=await self._fetchall("SELECT email,reason,created_at FROM outreach_suppressions ORDER BY created_at DESC LIMIT ?",(max(1,min(limit,10000)),),operation_name="list suppressions");return [dict(row) for row in rows]
+    async def count_table(self, table: str) -> int:
+        allowed = {"outreach_candidates", "outreach_prospects", "outreach_contacts", "outreach_campaigns", "outreach_sequences", "outreach_messages", "outreach_replies", "outreach_history", "outreach_suppressions"}
+        if table not in allowed: raise ValueError("Unsupported outreach table")
+        await self.initialize(); return int(await self._fetch_value(f"SELECT COUNT(*) FROM {table}", operation_name=f"count {table}") or 0)

@@ -76,11 +76,11 @@ class SEOAuditRepository(SQLiteRepository[SEOAudit]):
         except (TypeError, ValueError) as exc:
             raise RepositoryError("Stored SEO audit could not be decoded.") from exc
 
-    async def list_recent(self, limit: int = 50) -> list[SEOAudit]:
+    async def list_recent(self, limit: int = 50, offset: int = 0) -> list[SEOAudit]:
         await self.initialize()
         rows = await self._fetchall(
-            "SELECT audit_json FROM seo_audits ORDER BY audited_at DESC LIMIT ?",
-            (max(1, min(limit, 500)),),
+            "SELECT audit_json FROM seo_audits ORDER BY audited_at DESC LIMIT ? OFFSET ?",
+            (max(1, min(limit, 500)), max(0, offset)),
             operation_name="list SEO audits",
         )
         try:

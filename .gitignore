@@ -31,6 +31,10 @@ desktop.ini
 build/
 dist/
 *.egg-info/
+web/.next/
+web/node_modules/
+web/coverage/
+web/*.tsbuildinfo
 
 # Runtime data, logs, and generated output
 *.log

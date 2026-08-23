@@ -12,6 +12,8 @@ class AIVisibilityRepository(SQLiteRepository[object]):
   await self._execute("INSERT INTO ai_visibility_prompts(prompt_id,prompt_key,prompt_json) VALUES(?,?,?)",(str(prompt.prompt_id),key,prompt.model_dump_json()),operation_name="save visibility prompt");return prompt
  async def list_prompts(self):
   await self.initialize();rows=await self._fetchall("SELECT prompt_json FROM ai_visibility_prompts ORDER BY created_at,prompt_id",operation_name="list visibility prompts");return [MonitoredPrompt.model_validate_json(r["prompt_json"]) for r in rows]
+ async def count_prompts(self):
+  await self.initialize();row=await self._fetchone("SELECT COUNT(*) AS count FROM ai_visibility_prompts",operation_name="count visibility prompts");return int(row["count"])
  async def save_run(self,run):
   await self.initialize();base=run.model_copy(update={"observations":()});await self._execute("INSERT INTO ai_visibility_runs(run_id,created_at,run_json) VALUES(?,?,?) ON CONFLICT(run_id) DO NOTHING",(str(run.run_id),run.created_at.isoformat(),base.model_dump_json()),operation_name="save visibility run")
   for o in run.observations:
@@ -19,3 +21,5 @@ class AIVisibilityRepository(SQLiteRepository[object]):
   return run
  async def history(self,limit=10000):
   await self.initialize();rows=await self._fetchall("SELECT observation_json FROM ai_visibility_observations ORDER BY observed_at,rowid LIMIT ?",(min(10000,max(1,limit)),),operation_name="visibility history");return [AIVisibilityObservation.model_validate_json(r["observation_json"]) for r in rows]
+ async def count_observations(self):
+  await self.initialize();row=await self._fetchone("SELECT COUNT(*) AS count FROM ai_visibility_observations",operation_name="count visibility observations");return int(row["count"])

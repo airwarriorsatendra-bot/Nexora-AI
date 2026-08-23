@@ -58,14 +58,19 @@ class LocalSEORepository(SQLiteRepository[LocalSEOAudit]):
  async def save_landing_page(self,x:LocalLandingPage):
   await self.initialize();await self._execute("INSERT INTO local_landing_pages(url,page_json) VALUES(?,?) ON CONFLICT(url) DO UPDATE SET page_json=excluded.page_json",(x.url,x.model_dump_json()),operation_name="save local landing page");return x
  async def list_locations(self,limit=1000):return await self._list("local_locations","location_json",BusinessLocation,limit,"observed_at")
+ async def count_locations(self):return await self._count("local_locations")
  async def list_gbp_accounts(self,limit=100):return await self._list("local_gbp_accounts","account_json",BusinessProfileAccount,limit,"observed_at")
  async def list_reviews(self,limit=10000):return await self._list("local_reviews","review_json",LocalReview,limit,"observed_at")
+ async def count_reviews(self):return await self._count("local_reviews")
  async def list_nap_evidence(self,limit=10000):return await self._list("local_nap_evidence","evidence_json",NAPEvidence,limit,"observed_at")
  async def list_ranks(self,limit=10000):return await self._list("local_rank_observations","rank_json",LocalRankObservation,limit,"observed_at")
  async def list_citations(self,limit=10000):return await self._list("local_citations","citation_json",LocalCitation,limit,"observed_at")
  async def list_targets(self,limit=10000):return await self._list("local_citation_targets","target_json",CitationTarget,limit)
  async def list_competitors(self,limit=10000):return await self._list("local_competitors","competitor_json",LocalCompetitor,limit,"observed_at")
  async def list_opportunities(self,limit=10000):return await self._list("local_opportunities","opportunity_json",LocalOpportunity,limit,"observed_at")
+ async def count_opportunities(self):return await self._count("local_opportunities")
+ async def _count(self,table):
+  await self.initialize();row=await self._fetchone(f"SELECT COUNT(*) AS count FROM {table}",operation_name=f"count {table}");return int(row["count"])
  async def list_history(self,limit=10000):return await self._list("local_history","event_json",LocalHistoryEvent,limit,"observed_at")
  async def list_queries(self,limit=10000):return await self._list("local_queries","query_json",LocalQueryEvidence,limit)
  async def list_landing_pages(self,limit=10000):return await self._list("local_landing_pages","page_json",LocalLandingPage,limit)
